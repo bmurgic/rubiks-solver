@@ -1,7 +1,8 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { memo, useMemo, useRef, type ReactNode } from 'react';
+import { memo, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
 import type { Group } from 'three';
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import type { FaceName } from '../core/facelets/facelets';
 import type { Face, Move } from '../core/cube-model/moves';
 import { FACE_COLORS, PLASTIC } from './colors';
@@ -139,33 +140,59 @@ interface CubeViewProps {
   turn: Turn | null;
 }
 
+const WRAPPER_STYLE: CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+};
+
+const RESET_BUTTON_STYLE: CSSProperties = {
+  position: 'absolute',
+  top: 12,
+  right: 12,
+  fontSize: 16,
+  padding: '8px 12px',
+};
+
 export function CubeView({ facelets, turn }: CubeViewProps) {
   const turning = turn ? POSITIONS.filter(FACE_SELECTOR[turn.move.face]) : [];
   const still = turn ? POSITIONS.filter((p) => !FACE_SELECTOR[turn.move.face](p)) : POSITIONS;
+  const controls = useRef<OrbitControlsImpl>(null);
+  const resetView = () => controls.current?.reset();
   return (
-    <Canvas camera={{ position: CAMERA_POSITION, fov: CAMERA_FOV }}>
-      <ambientLight intensity={AMBIENT_INTENSITY} />
-      <directionalLight position={DIRECTIONAL_POSITION} intensity={DIRECTIONAL_INTENSITY} />
-      {still.map((p) => (
-        <Cubelet key={p.join(',')} pos={p} facelets={facelets} />
-      ))}
-      {turn && (
-        <TurningGroup
-          key={`${turn.move.face}${turn.move.turns}-${facelets.join('')}`}
-          turn={turn}
-        >
-          {turning.map((p) => (
-            <Cubelet key={p.join(',')} pos={p} facelets={facelets} />
-          ))}
-        </TurningGroup>
-      )}
-      <OrbitControls
-        enablePan={false}
-        enableDamping
-        minDistance={MIN_DISTANCE}
-        maxDistance={MAX_DISTANCE}
-        makeDefault
-      />
-    </Canvas>
+    <div style={WRAPPER_STYLE} onDoubleClick={resetView}>
+      <Canvas camera={{ position: CAMERA_POSITION, fov: CAMERA_FOV }}>
+        <ambientLight intensity={AMBIENT_INTENSITY} />
+        <directionalLight position={DIRECTIONAL_POSITION} intensity={DIRECTIONAL_INTENSITY} />
+        {still.map((p) => (
+          <Cubelet key={p.join(',')} pos={p} facelets={facelets} />
+        ))}
+        {turn && (
+          <TurningGroup
+            key={`${turn.move.face}${turn.move.turns}-${facelets.join('')}`}
+            turn={turn}
+          >
+            {turning.map((p) => (
+              <Cubelet key={p.join(',')} pos={p} facelets={facelets} />
+            ))}
+          </TurningGroup>
+        )}
+        <OrbitControls
+          ref={controls}
+          enablePan={false}
+          enableDamping
+          minDistance={MIN_DISTANCE}
+          maxDistance={MAX_DISTANCE}
+          makeDefault
+        />
+      </Canvas>
+      <button
+        data-testid="reset-view"
+        aria-label="Reset view"
+        style={RESET_BUTTON_STYLE}
+        onClick={resetView}
+      >
+        🎯 Reset view
+      </button>
+    </div>
   );
 }

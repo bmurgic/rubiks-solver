@@ -1,5 +1,13 @@
-import { lazy, Suspense, useCallback, useMemo, useReducer, type CSSProperties } from 'react';
-import { solved, type CubeState } from './core/cube-model/state';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useReducer,
+  type CSSProperties,
+} from 'react';
+import { solved, isSolved, type CubeState } from './core/cube-model/state';
 import { apply } from './core/cube-model/apply';
 import type { Move } from './core/cube-model/moves';
 import { toFacelets } from './core/facelets/facelets';
@@ -8,13 +16,16 @@ import { scramble } from './core/scramble/scramble';
 import { solve } from './core/solver/solve';
 import type { Stage } from './core/solver/types';
 import { buildSnapshots } from './core/playback/snapshots';
+import { format } from './core/notation/notation';
 import { ErrorBoundary } from './view/ErrorBoundary';
 import type { Turn } from './view/CubeView';
+import { ControlPanel } from './view/ControlPanel';
 
 const CubeView = lazy(() => import('./view/CubeView').then((m) => ({ default: m.CubeView })));
 
 const SCRAMBLE_MS = 180;
 const PLAY_MS = 300;
+const DEFAULT_SPEED = 1;
 
 type Phase = 'SOLVED' | 'SCRAMBLING' | 'SCRAMBLED' | 'PLAYING' | 'PAUSED';
 
@@ -33,6 +44,7 @@ interface AppState {
   solution: Solution | null;
   moveIndex: number; // next solution move to play
   solveError: string | null;
+  speed: number;
 }
 
 type Action =
@@ -42,7 +54,9 @@ type Action =
   | { type: 'SOLVE_FAILED'; message: string }
   | { type: 'PLAY' }
   | { type: 'PAUSE' }
-  | { type: 'PLAY_TURN_DONE' };
+  | { type: 'PLAY_TURN_DONE' }
+  | { type: 'SEEK'; index: number }
+  | { type: 'SET_SPEED'; speed: number };
 
 function buildSolution(cube: CubeState): Solution {
   const stages = solve(cube);
@@ -64,6 +78,7 @@ function reducer(s: AppState, a: Action): AppState {
   switch (a.type) {
     case 'SCRAMBLE':
       return {
+        ...s,
         phase: a.moves.length === 0 ? 'SCRAMBLED' : 'SCRAMBLING',
         cube: solved(),
         scrambleQueue: a.moves,
@@ -100,6 +115,15 @@ function reducer(s: AppState, a: Action): AppState {
       }
       return { ...s, cube, moveIndex: next };
     }
+    case 'SEEK': {
+      if (!s.solution) return s;
+      const index = Math.max(0, Math.min(a.index, s.solution.moves.length));
+      // cancel any in-flight turn by snapping phase to PAUSED; cube snaps to the snapshot
+      const phase: Phase = index >= s.solution.moves.length ? 'SOLVED' : 'PAUSED';
+      return { ...s, cube: s.solution.snapshots[index], moveIndex: index, phase };
+    }
+    case 'SET_SPEED':
+      return { ...s, speed: a.speed };
   }
 }
 
@@ -111,22 +135,8 @@ const INITIAL_STATE: AppState = {
   solution: null,
   moveIndex: 0,
   solveError: null,
+  speed: DEFAULT_SPEED,
 };
-
-/**
- * Pick the label to display for the current move index, skipping zero-move
- * stages so a pre-solved Daisy doesn't make the label jump straight to "Cross".
- * Falls back to the first non-empty stage's name when we're before any stage's
- * first move (e.g. moveIndex === 0 with an empty initial stage).
- */
-function stageNameAt(sol: Solution, moveIndex: number): string {
-  const firstNonEmpty = sol.stages.find((st) => st.moves.length > 0);
-  let name = firstNonEmpty?.name ?? '';
-  sol.stages.forEach((st, i) => {
-    if (st.moves.length > 0 && moveIndex >= sol.stageStart[i]) name = st.name;
-  });
-  return name;
-}
 
 const APP_STYLE: CSSProperties = {
   width: '100vw',
@@ -138,37 +148,17 @@ const FALLBACK_STYLE: CSSProperties = {
   placeItems: 'center',
   height: '100%',
 };
-const STAGE_LABEL_STYLE: CSSProperties = {
+const SOLVE_ERROR_STYLE: CSSProperties = {
   position: 'absolute',
   top: 16,
   left: 0,
   right: 0,
   textAlign: 'center',
-  fontSize: 28,
-  fontWeight: 700,
-};
-const CONTROLS_STYLE: CSSProperties = {
-  position: 'absolute',
-  bottom: 16,
-  left: 0,
-  right: 0,
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: 8,
-};
-const BUTTON_ROW_STYLE: CSSProperties = {
-  display: 'flex',
-  justifyContent: 'center',
-  gap: 12,
-};
-const BUTTON_STYLE: CSSProperties = {
-  fontSize: 20,
-  padding: '12px 24px',
-};
-const SOLVE_ERROR_STYLE: CSSProperties = {
   color: '#ff6b6b',
   fontSize: 14,
+};
+const SOLVE_ERROR_INNER_STYLE: CSSProperties = {
+  display: 'inline-block',
   background: 'rgba(0,0,0,0.6)',
   padding: '6px 12px',
   borderRadius: 4,
@@ -192,8 +182,29 @@ export default function App() {
   }, [s.cube]);
   const onPlay = useCallback(() => dispatch({ type: 'PLAY' }), []);
   const onPause = useCallback(() => dispatch({ type: 'PAUSE' }), []);
+  const onSeek = useCallback((index: number) => dispatch({ type: 'SEEK', index }), []);
+  const onSpeed = useCallback((speed: number) => dispatch({ type: 'SET_SPEED', speed }), []);
   const onScrambleTurnDone = useCallback(() => dispatch({ type: 'SCRAMBLE_TURN_DONE' }), []);
   const onPlayTurnDone = useCallback(() => dispatch({ type: 'PLAY_TURN_DONE' }), []);
+
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (
+        ev.target instanceof HTMLElement &&
+        ['INPUT', 'SELECT', 'TEXTAREA'].includes(ev.target.tagName)
+      ) {
+        return;
+      }
+      if (ev.code === 'Space') {
+        ev.preventDefault();
+        dispatch({ type: s.phase === 'PLAYING' ? 'PAUSE' : 'PLAY' });
+      }
+      if (ev.code === 'ArrowRight') dispatch({ type: 'SEEK', index: s.moveIndex + 1 });
+      if (ev.code === 'ArrowLeft') dispatch({ type: 'SEEK', index: s.moveIndex - 1 });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [s.phase, s.moveIndex]);
 
   let turn: Turn | null = null;
   if (s.phase === 'SCRAMBLING' && s.scrambleIndex < s.scrambleQueue.length) {
@@ -205,60 +216,50 @@ export default function App() {
   } else if (s.phase === 'PLAYING' && s.solution && s.moveIndex < s.solution.moves.length) {
     turn = {
       move: s.solution.moves[s.moveIndex],
-      durationMs: PLAY_MS,
+      durationMs: PLAY_MS / s.speed,
       onComplete: onPlayTurnDone,
     };
   }
 
-  const stageName = s.solution ? stageNameAt(s.solution, s.moveIndex) : '';
-  const playDisabled = !s.solution || s.moveIndex >= (s.solution?.moves.length ?? 0);
+  const currentMove =
+    s.solution && s.moveIndex < s.solution.moves.length
+      ? format([s.solution.moves[s.moveIndex]])
+      : '';
 
   return (
-    <div data-testid="app" data-phase={s.phase} style={APP_STYLE}>
+    <div
+      data-testid="app"
+      data-phase={s.phase}
+      data-solved={isSolved(s.cube)}
+      style={APP_STYLE}
+    >
       <ErrorBoundary>
         <Suspense fallback={<div style={FALLBACK_STYLE}>Loading cube…</div>}>
           <CubeView facelets={facelets} turn={turn} />
         </Suspense>
       </ErrorBoundary>
-      {stageName && (
-        <div data-testid="stage-label" style={STAGE_LABEL_STYLE}>
-          {stageName}
-        </div>
-      )}
-      <div style={CONTROLS_STYLE}>
-        {s.solveError && (
-          <div data-testid="solve-error" role="alert" style={SOLVE_ERROR_STYLE}>
+      {s.solveError && (
+        <div style={SOLVE_ERROR_STYLE}>
+          <div data-testid="solve-error" role="alert" style={SOLVE_ERROR_INNER_STYLE}>
             {s.solveError}
           </div>
-        )}
-        <div style={BUTTON_ROW_STYLE}>
-          <button data-testid="scramble" onClick={onScramble} style={BUTTON_STYLE}>
-            🔀 Scramble
-          </button>
-          <button
-            data-testid="solve"
-            onClick={onSolve}
-            disabled={s.phase !== 'SCRAMBLED'}
-            style={BUTTON_STYLE}
-          >
-            🧠 Solve
-          </button>
-          {s.phase === 'PLAYING' ? (
-            <button data-testid="pause" onClick={onPause} style={BUTTON_STYLE}>
-              ⏸ Pause
-            </button>
-          ) : (
-            <button
-              data-testid="play"
-              onClick={onPlay}
-              disabled={playDisabled}
-              style={BUTTON_STYLE}
-            >
-              ▶ Play
-            </button>
-          )}
         </div>
-      </div>
+      )}
+      <ControlPanel
+        phase={s.phase}
+        stages={s.solution?.stages ?? null}
+        stageStart={s.solution?.stageStart ?? []}
+        moveIndex={s.moveIndex}
+        totalMoves={s.solution?.moves.length ?? 0}
+        speed={s.speed}
+        currentMove={currentMove}
+        onScramble={onScramble}
+        onSolve={onSolve}
+        onPlay={onPlay}
+        onPause={onPause}
+        onSeek={onSeek}
+        onSpeed={onSpeed}
+      />
     </div>
   );
 }
