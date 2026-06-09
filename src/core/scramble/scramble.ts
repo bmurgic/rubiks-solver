@@ -15,6 +15,14 @@ const AXIS: Record<Face, Axis> = {
 const TURNS: readonly Turns[] = [1, 2, 3];
 const DEFAULT_SCRAMBLE_LENGTH = 25;
 
+/**
+ * Generate a WCA-style scramble: random moves with no consecutive same-face
+ * repeats and no three-in-a-row same-axis runs.
+ *
+ * @param rng PRNG source — pass `mulberry32(seed)` for determinism.
+ * @param length Number of moves to emit. Defaults to a standard 25.
+ * @returns The scramble move sequence.
+ */
 export function scramble(rng: Rng, length = DEFAULT_SCRAMBLE_LENGTH): Move[] {
   const out: Move[] = [];
   while (out.length < length) {

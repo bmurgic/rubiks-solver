@@ -7,6 +7,13 @@ const MIX2_ADD = 61;
 const FINAL_SHIFT = 14;
 const UINT32_MAX_PLUS_1 = 4294967296;
 
+/**
+ * Build a deterministic 32-bit PRNG (mulberry32) seeded with `seed`.
+ *
+ * @param seed Integer seed. The same seed always produces the same sequence —
+ *   the property the 10k correctness gate depends on.
+ * @returns A function returning successive pseudo-random floats in `[0, 1)`.
+ */
 export function mulberry32(seed: number): Rng {
   let a = seed >>> 0;
   return () => {

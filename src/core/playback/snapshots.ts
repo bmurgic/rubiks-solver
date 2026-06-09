@@ -6,6 +6,10 @@ import { apply } from '../cube-model/apply';
  * Build a length-(moves+1) array where snapshots[0] = start and
  * snapshots[i+1] = apply(snapshots[i], moves[i]). Lets playback render
  * any move's pre-state in O(1).
+ *
+ * @param start The cube state before the first move.
+ * @param moves The move sequence.
+ * @returns Array of length `moves.length + 1` of intermediate states.
  */
 export function buildSnapshots(start: CubeState, moves: readonly Move[]): CubeState[] {
   const out: CubeState[] = [start];

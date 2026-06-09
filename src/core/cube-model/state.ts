@@ -36,6 +36,12 @@ const SOLVED_CO: readonly number[] = [0, 0, 0, 0, 0, 0, 0, 0];
 const SOLVED_EP: readonly number[] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const SOLVED_EO: readonly number[] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
+/**
+ * Build a fresh solved-cube state — every cubie home, every orientation zero.
+ *
+ * @returns A new `CubeState` whose `cp`/`ep` are the identity permutations and
+ *   `co`/`eo` are all zeros.
+ */
 export function solved(): CubeState {
   return {
     cp: [...SOLVED_CP],
@@ -45,6 +51,13 @@ export function solved(): CubeState {
   };
 }
 
+/**
+ * Test whether `s` equals the solved state — i.e. every cubie is in its home
+ * slot with default orientation.
+ *
+ * @param s The cube state to test.
+ * @returns `true` iff `s` is structurally equal to `solved()`.
+ */
 export function isSolved(s: CubeState): boolean {
   const z = solved();
   return (['cp', 'co', 'ep', 'eo'] as const).every(

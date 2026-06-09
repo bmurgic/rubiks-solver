@@ -36,6 +36,18 @@ function isPermutation(p: readonly number[], n: number): boolean {
   return sorted.every((v, i) => v === i);
 }
 
+/**
+ * Verify a cube state belongs to the reachable space — i.e. it could have
+ * arisen from a sequence of face turns on the solved state.
+ *
+ * Checks four invariants in order: structure (valid permutations and
+ * twist/flip ranges), corner twist sum mod 3, edge flip sum mod 2, and
+ * corner/edge permutation parity agreement.
+ *
+ * @param s The cube state to validate.
+ * @throws {UnsolvableCubeError} If any invariant is violated. The error's
+ *   `invariant` field names which one.
+ */
 export function assertSolvable(s: CubeState): void {
   const cornerStructureOk =
     isPermutation(s.cp, NUM_CORNERS) && s.co.length === NUM_CORNERS &&

@@ -68,6 +68,13 @@ export const EDGE_COLOR: readonly (readonly FaceName[])[] = [
 export const EDGE_FACES = EDGE_COLOR;
 export const CORNER_FACES = CORNER_COLOR;
 
+/**
+ * Project a cubie-level cube state to a 54-sticker facelet array, ordered
+ * U, R, F, D, L, B (nine stickers per face, row-major).
+ *
+ * @param s The cube state to project.
+ * @returns A length-54 array of face-color labels.
+ */
 export function toFacelets(s: CubeState): FaceName[] {
   const f = new Array<FaceName>(STICKERS_PER_FACE * FACE_ORDER.length);
   // Fixed centers.
