@@ -11,7 +11,7 @@ export function cleanup(moves: readonly Move[]): Move[] {
   for (const m of moves) {
     let merged: Move | undefined = m;
     while (merged !== undefined && out.length > 0 && out[out.length - 1].face === merged.face) {
-      const prev = out.pop() as Move;
+      const prev = out.pop()!;
       const combined: number = (prev.turns + merged.turns) % TURNS_MOD;
       merged = combined === 0 ? undefined : { face: merged.face, turns: combined as Turns };
     }

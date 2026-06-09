@@ -43,3 +43,8 @@ export function whiteEdgeFace(s: CubeState, slot: number): FaceName {
   // White is sticker k=0 of D-edges; its face is EDGE_FACES[slot] under current eo.
   return EDGE_FACES[slot][s.eo[slot]];
 }
+
+/** True iff `cubie` sits in its home slot with default orientation. */
+export function edgeHome(s: CubeState, cubie: number): boolean {
+  return s.ep[cubie] === cubie && s.eo[cubie] === 0;
+}

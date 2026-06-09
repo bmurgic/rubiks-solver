@@ -9,6 +9,7 @@ const ROTATE_U_MAX_TURNS = 4;
 export class Emitter {
   state: CubeState;
   readonly moves: Move[] = [];
+  /** Inclusive — throws StageCapError on the (cap+1)th emitted move. */
   private readonly cap: number;
   private readonly stage: StageName;
 

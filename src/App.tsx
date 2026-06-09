@@ -32,12 +32,14 @@ interface AppState {
   scrambleIndex: number;
   solution: Solution | null;
   moveIndex: number; // next solution move to play
+  solveError: string | null;
 }
 
 type Action =
   | { type: 'SCRAMBLE'; moves: Move[] }
   | { type: 'SCRAMBLE_TURN_DONE' }
-  | { type: 'SOLVE' }
+  | { type: 'SOLVE'; solution: Solution }
+  | { type: 'SOLVE_FAILED'; message: string }
   | { type: 'PLAY' }
   | { type: 'PAUSE' }
   | { type: 'PLAY_TURN_DONE' };
@@ -54,6 +56,10 @@ function buildSolution(cube: CubeState): Solution {
   return { stages, moves, stageStart, snapshots: buildSnapshots(cube, moves) };
 }
 
+function getErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : 'Unexpected solver error';
+}
+
 function reducer(s: AppState, a: Action): AppState {
   switch (a.type) {
     case 'SCRAMBLE':
@@ -64,6 +70,7 @@ function reducer(s: AppState, a: Action): AppState {
         scrambleIndex: 0,
         solution: null,
         moveIndex: 0,
+        solveError: null,
       };
     case 'SCRAMBLE_TURN_DONE': {
       const cube = apply(s.cube, s.scrambleQueue[s.scrambleIndex]);
@@ -74,8 +81,10 @@ function reducer(s: AppState, a: Action): AppState {
     }
     case 'SOLVE':
       return s.phase === 'SCRAMBLED'
-        ? { ...s, solution: buildSolution(s.cube), moveIndex: 0, phase: 'PAUSED' }
+        ? { ...s, solution: a.solution, moveIndex: 0, phase: 'PAUSED', solveError: null }
         : s;
+    case 'SOLVE_FAILED':
+      return { ...s, solveError: a.message };
     case 'PLAY':
       return s.solution && s.moveIndex < s.solution.moves.length
         ? { ...s, phase: 'PLAYING' }
@@ -101,12 +110,20 @@ const INITIAL_STATE: AppState = {
   scrambleIndex: 0,
   solution: null,
   moveIndex: 0,
+  solveError: null,
 };
 
+/**
+ * Pick the label to display for the current move index, skipping zero-move
+ * stages so a pre-solved Daisy doesn't make the label jump straight to "Cross".
+ * Falls back to the first non-empty stage's name when we're before any stage's
+ * first move (e.g. moveIndex === 0 with an empty initial stage).
+ */
 function stageNameAt(sol: Solution, moveIndex: number): string {
-  let name: string = sol.stages[0]?.name ?? '';
+  const firstNonEmpty = sol.stages.find((st) => st.moves.length > 0);
+  let name = firstNonEmpty?.name ?? '';
   sol.stages.forEach((st, i) => {
-    if (moveIndex >= sol.stageStart[i]) name = st.name;
+    if (st.moves.length > 0 && moveIndex >= sol.stageStart[i]) name = st.name;
   });
   return name;
 }
@@ -136,12 +153,25 @@ const CONTROLS_STYLE: CSSProperties = {
   left: 0,
   right: 0,
   display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: 8,
+};
+const BUTTON_ROW_STYLE: CSSProperties = {
+  display: 'flex',
   justifyContent: 'center',
   gap: 12,
 };
 const BUTTON_STYLE: CSSProperties = {
   fontSize: 20,
   padding: '12px 24px',
+};
+const SOLVE_ERROR_STYLE: CSSProperties = {
+  color: '#ff6b6b',
+  fontSize: 14,
+  background: 'rgba(0,0,0,0.6)',
+  padding: '6px 12px',
+  borderRadius: 4,
 };
 
 export default function App() {
@@ -152,7 +182,14 @@ export default function App() {
     () => dispatch({ type: 'SCRAMBLE', moves: scramble(mulberry32(Date.now() >>> 0)) }),
     [],
   );
-  const onSolve = useCallback(() => dispatch({ type: 'SOLVE' }), []);
+  const onSolve = useCallback(() => {
+    try {
+      const solution = buildSolution(s.cube);
+      dispatch({ type: 'SOLVE', solution });
+    } catch (err: unknown) {
+      dispatch({ type: 'SOLVE_FAILED', message: getErrorMessage(err) });
+    }
+  }, [s.cube]);
   const onPlay = useCallback(() => dispatch({ type: 'PLAY' }), []);
   const onPause = useCallback(() => dispatch({ type: 'PAUSE' }), []);
   const onScrambleTurnDone = useCallback(() => dispatch({ type: 'SCRAMBLE_TURN_DONE' }), []);
@@ -174,8 +211,7 @@ export default function App() {
   }
 
   const stageName = s.solution ? stageNameAt(s.solution, s.moveIndex) : '';
-  const playDisabled =
-    !s.solution || s.moveIndex >= (s.solution?.moves.length ?? 0);
+  const playDisabled = !s.solution || s.moveIndex >= (s.solution?.moves.length ?? 0);
 
   return (
     <div data-testid="app" data-phase={s.phase} style={APP_STYLE}>
@@ -190,31 +226,38 @@ export default function App() {
         </div>
       )}
       <div style={CONTROLS_STYLE}>
-        <button data-testid="scramble" onClick={onScramble} style={BUTTON_STYLE}>
-          🔀 Scramble
-        </button>
-        <button
-          data-testid="solve"
-          onClick={onSolve}
-          disabled={s.phase !== 'SCRAMBLED'}
-          style={BUTTON_STYLE}
-        >
-          🧠 Solve
-        </button>
-        {s.phase === 'PLAYING' ? (
-          <button data-testid="pause" onClick={onPause} style={BUTTON_STYLE}>
-            ⏸ Pause
+        {s.solveError && (
+          <div data-testid="solve-error" role="alert" style={SOLVE_ERROR_STYLE}>
+            {s.solveError}
+          </div>
+        )}
+        <div style={BUTTON_ROW_STYLE}>
+          <button data-testid="scramble" onClick={onScramble} style={BUTTON_STYLE}>
+            🔀 Scramble
           </button>
-        ) : (
           <button
-            data-testid="play"
-            onClick={onPlay}
-            disabled={playDisabled}
+            data-testid="solve"
+            onClick={onSolve}
+            disabled={s.phase !== 'SCRAMBLED'}
             style={BUTTON_STYLE}
           >
-            ▶ Play
+            🧠 Solve
           </button>
-        )}
+          {s.phase === 'PLAYING' ? (
+            <button data-testid="pause" onClick={onPause} style={BUTTON_STYLE}>
+              ⏸ Pause
+            </button>
+          ) : (
+            <button
+              data-testid="play"
+              onClick={onPlay}
+              disabled={playDisabled}
+              style={BUTTON_STYLE}
+            >
+              ▶ Play
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
