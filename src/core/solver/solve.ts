@@ -4,11 +4,12 @@ import type { Stage } from './types';
 import { solveDaisy } from './stages/daisy';
 import { solveCross } from './stages/cross';
 import { solveFirstLayer } from './stages/first-layer';
+import { solveSecondLayer } from './stages/second-layer';
 
 type StageSolver = (s: CubeState) => { stage: Stage; state: CubeState };
 
-// Tasks 6-8 append: solveSecondLayer, solveOll, solvePll.
-const PIPELINE: readonly StageSolver[] = [solveDaisy, solveCross, solveFirstLayer];
+// Tasks 7-8 append: solveOll, solvePll.
+const PIPELINE: readonly StageSolver[] = [solveDaisy, solveCross, solveFirstLayer, solveSecondLayer];
 
 export function solve(state: CubeState): Stage[] {
   assertSolvable(state);
