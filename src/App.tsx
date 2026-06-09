@@ -11,7 +11,6 @@ import type { Turn } from './view/CubeView';
 const CubeView = lazy(() => import('./view/CubeView').then((m) => ({ default: m.CubeView })));
 
 const SCRAMBLE_MS = 180;
-const SEED_MASK = 0xffffffff;
 
 type Phase = 'SOLVED' | 'SCRAMBLING' | 'SCRAMBLED' | 'PLAYING' | 'PAUSED';
 
@@ -27,7 +26,12 @@ type Action = { type: 'SCRAMBLE'; moves: Move[] } | { type: 'TURN_DONE' };
 function reducer(s: AppState, a: Action): AppState {
   switch (a.type) {
     case 'SCRAMBLE':
-      return { phase: 'SCRAMBLING', cube: solved(), queue: a.moves, queueIndex: 0 };
+      return {
+        phase: a.moves.length === 0 ? 'SCRAMBLED' : 'SCRAMBLING',
+        cube: solved(),
+        queue: a.moves,
+        queueIndex: 0,
+      };
     case 'TURN_DONE': {
       const cube = apply(s.cube, s.queue[s.queueIndex]);
       const next = s.queueIndex + 1;
@@ -75,8 +79,7 @@ export default function App() {
   const facelets = useMemo(() => toFacelets(s.cube), [s.cube]);
 
   const onScramble = useCallback(() => {
-    const seed = (Date.now() & SEED_MASK) >>> 0;
-    dispatch({ type: 'SCRAMBLE', moves: scramble(mulberry32(seed)) });
+    dispatch({ type: 'SCRAMBLE', moves: scramble(mulberry32(Date.now() >>> 0)) });
   }, []);
 
   const onTurnDone = useCallback(() => dispatch({ type: 'TURN_DONE' }), []);

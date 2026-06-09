@@ -67,7 +67,10 @@ interface CubeletProps {
   facelets: FaceName[];
 }
 
-// [frontend-patterns] memoized — 26 instances; skip re-render when pos/facelets are unchanged
+// [frontend-patterns] memoized — skips cubelet re-renders when only `turn`/phase changes
+// and the cube state is unchanged. On those renders the parent's `useMemo`d facelets array
+// stays referentially stable, so all 26 instances bail out. (When a TURN_DONE commit
+// produces a new facelets array, every cubelet does re-render — that's intentional.)
 const Cubelet = memo(function Cubelet({ pos, facelets }: CubeletProps) {
   const colors = useMemo(
     () =>
@@ -92,6 +95,20 @@ interface TurningGroupProps {
   children: ReactNode;
 }
 
+/**
+ * Animates the cubelets of a single face turning to the target angle.
+ *
+ * Parent MUST remount this component (via `key`) for every new turn; the
+ * `elapsed` and `done` refs reset only on mount. The current key
+ * `${face}${turns}-${facelets.join('')}` is sound because applying a move
+ * always changes the facelets string.
+ *
+ * On completion the group stays at the final rotation angle (NOT reset to 0)
+ * — the recolor commits asynchronously via `onComplete`, and resetting here
+ * would render one frame of old colors at angle 0, producing a visible
+ * snap-back. The key-change remount on the next turn handles the visual
+ * reset cleanly once new state has committed.
+ */
 function TurningGroup({ turn, children }: TurningGroupProps) {
   const ref = useRef<Group>(null);
   const elapsed = useRef(0);
@@ -110,7 +127,7 @@ function TurningGroup({ turn, children }: TurningGroupProps) {
     ref.current.rotation.set(axis[0] * angle, axis[1] * angle, axis[2] * angle);
     if (t === 1) {
       done.current = true;
-      ref.current.rotation.set(0, 0, 0); // reset; recolor happens via onComplete state change
+      // Leave rotation at the final angle; the remount on key change handles reset.
       turn.onComplete();
     }
   });
