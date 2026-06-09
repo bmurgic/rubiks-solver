@@ -28,3 +28,7 @@ dist-ssr
 
 # Coverage
 coverage/
+
+# Playwright MCP artifacts and ad-hoc screenshots
+.playwright-mcp/
+*.png

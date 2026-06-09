@@ -9,13 +9,13 @@ const ROTATE_U_MAX_TURNS = 4;
 export class Emitter {
   state: CubeState;
   readonly moves: Move[] = [];
+  private readonly cap: number;
+  private readonly stage: StageName;
 
-  constructor(
-    state: CubeState,
-    private readonly cap: number,
-    private readonly stage: StageName,
-  ) {
+  constructor(state: CubeState, cap: number, stage: StageName) {
     this.state = state;
+    this.cap = cap;
+    this.stage = stage;
   }
 
   do(seq: string | readonly Move[]): void {

@@ -12,9 +12,11 @@ const MAX_FLIP = 1;
 export type Invariant = 'structure' | 'twist' | 'flip' | 'parity';
 
 export class UnsolvableCubeError extends Error {
-  constructor(public readonly invariant: Invariant) {
+  readonly invariant: Invariant;
+  constructor(invariant: Invariant) {
     super(`Cube state is unsolvable: ${invariant} invariant violated`);
     this.name = 'UnsolvableCubeError';
+    this.invariant = invariant;
   }
 }
 
