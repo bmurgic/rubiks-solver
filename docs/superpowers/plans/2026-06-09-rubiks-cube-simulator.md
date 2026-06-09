@@ -12,6 +12,11 @@
 
 **A note on solver case tables:** The stage algorithms below are the standard published beginner-method algorithms. If a per-stage property test fails, the bug is almost certainly in a recognition rule or a left/right alg variant — fix the table entry, never weaken the test. Reference for move tables and facelet maps: Kociemba's CubieCube definitions (kociemba.org/cube.htm).
 
+> **Plan-polish constraints (apply throughout):**
+> - **[coding-standards]** No `any` or `as unknown as` casts. Every meaningful numeric (move caps, loop guards, durations, spacing) becomes an `UPPER_SNAKE_CASE` module constant when writing the files — some code blocks below show values inline for brevity. Functions target ~40 lines; split stage solvers into per-case helpers if a file nears 400 lines. Public core API gets JSDoc (Task 8 Step 3b).
+> - **[tdd-workflow]** Never skip the verify-FAIL step. Refactor-while-green before each commit. Coverage gate (`npm run test:coverage`, 80% on `src/core/**`) is part of every task's done-definition.
+> - **[frontend-patterns]** The r3f scene stays behind lazy + Suspense + ErrorBoundary from Task 1 on. Memoize pure components (`Cubelet`). Handlers stay stable via `useCallback`; all playback state lives in the single `useReducer` store — no ad-hoc `useState` flags.
+
 ---
 
 ## File structure
@@ -42,16 +47,17 @@ src/core/index.ts                   public core API re-exports
 src/view/colors.ts                  FaceName→hex map
 src/view/facelet-grid.ts            facelet index ↔ mesh grid mapping
 src/view/CubeView.tsx               26 cubelets, pivot turn animation
+src/view/ErrorBoundary.tsx          class error boundary around the canvas
 src/view/ControlPanel.tsx           buttons, timeline, speed
 src/App.tsx                         app state machine wiring (useReducer)
 e2e/journey.spec.ts                 Playwright journey
 ```
 
-Tests are colocated: `foo.ts` → `foo.test.ts`. The 10k gate lives in `src/core/solver/solve.gate.test.ts`.
+Tests are colocated: `foo.ts` → `foo.test.ts`. The 10k gate lives in `src/core/solver/solve.gate.test.ts`. Coverage (80% lines/functions/branches/statements on `src/core/**`) is enforced via `npm run test:coverage`. E2E uses semantic selectors only (`data-testid`, `getByRole`) — never CSS classes.
 
 ---
 
-### Task 1: Walking skeleton — solved cube renders in the browser
+### Task 1: [frontend-patterns] Walking skeleton — solved cube renders in the browser
 
 **Depends on:** none
 
@@ -67,10 +73,10 @@ cd /Users/bmurgic/Development/Personal/rubiks-sim
 npm create vite@latest . -- --template react-ts
 npm install
 npm install three @react-three/fiber @react-three/drei
-npm install -D vitest
+npm install -D vitest @vitest/coverage-v8
 ```
 
-Add to `package.json` scripts: `"test": "vitest run"`. Add to `vite.config.ts`:
+Add to `package.json` scripts: `"test": "vitest run"`, `"test:watch": "vitest"`, `"test:coverage": "vitest run --coverage"`. Add to `vite.config.ts`:
 
 ```ts
 /// <reference types="vitest/config" />
@@ -79,7 +85,17 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  test: { environment: 'node', include: ['src/**/*.test.ts'] },
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      include: ['src/core/**/*.ts'],
+      exclude: ['**/*.test.ts', 'src/core/index.ts'],
+      thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },
+    },
+  },
 });
 ```
 
@@ -304,20 +320,56 @@ export function CubeView({ facelets }: { facelets: FaceName[] }) {
 }
 ```
 
-`src/App.tsx`:
+`src/view/ErrorBoundary.tsx` — [frontend-patterns] the canvas subtree must not blank the page on a thrown error (StageCapError, WebGL context loss):
 
 ```tsx
-import { useMemo, useState } from 'react';
+import { Component, type ReactNode } from 'react';
+
+interface Props { children: ReactNode }
+interface State { error: Error | null }
+
+export class ErrorBoundary extends Component<Props, State> {
+  state: State = { error: null };
+  static getDerivedStateFromError(error: Error): State {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div role="alert" style={{ display: 'grid', placeItems: 'center', height: '100%' }}>
+          <div>
+            <p>Something went wrong rendering the cube.</p>
+            <pre>{this.state.error.message}</pre>
+            <button onClick={() => this.setState({ error: null })}>Try again</button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+```
+
+`src/App.tsx` — [frontend-patterns] the heavy r3f scene loads lazily inside Suspense + ErrorBoundary; this shell persists through all later tasks:
+
+```tsx
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { solved } from './core/cube-model/state';
 import { toFacelets } from './core/facelets/facelets';
-import { CubeView } from './view/CubeView';
+import { ErrorBoundary } from './view/ErrorBoundary';
+
+const CubeView = lazy(() => import('./view/CubeView').then((m) => ({ default: m.CubeView })));
 
 export default function App() {
   const [state] = useState(solved());
   const facelets = useMemo(() => toFacelets(state), [state]);
   return (
     <div data-testid="app" style={{ width: '100vw', height: '100vh' }}>
-      <CubeView facelets={facelets} />
+      <ErrorBoundary>
+        <Suspense fallback={<div style={{ display: 'grid', placeItems: 'center', height: '100%' }}>Loading cube…</div>}>
+          <CubeView facelets={facelets} />
+        </Suspense>
+      </ErrorBoundary>
     </div>
   );
 }
@@ -325,9 +377,9 @@ export default function App() {
 
 Delete the Vite template's `App.css` usage/content as needed; keep `index.css` minimal (`html, body, #root { margin: 0; height: 100%; }`).
 
-- [ ] **Step 8: Verify build + lint + test**
+- [ ] **Step 8: Verify build + lint + test + coverage**
 
-Run: `npm run lint && npm test && npm run build` → all pass.
+Run: `npm run lint && npm test && npm run test:coverage && npm run build` → all pass; coverage meets the 80% thresholds for `src/core/**`.
 
 - [ ] **Step 9: Manual visual check**
 
@@ -341,7 +393,7 @@ git add -A && git commit -m "feat: walking skeleton — solved cube renders from
 
 ---
 
-### Task 2: Move engine — tables, apply, notation, foundation tests
+### Task 2: [tdd-workflow] Move engine — tables, apply, notation, foundation tests
 
 **Depends on:** Task 1
 
@@ -530,7 +582,7 @@ git add -A && git commit -m "feat: move engine — base tables, apply, notation,
 
 ---
 
-### Task 3: User can scramble — animated 25-move scramble
+### Task 3: [frontend-patterns] User can scramble — animated 25-move scramble
 
 **Depends on:** Task 2
 
@@ -602,8 +654,9 @@ import type { Rng } from './rng';
 const FACES: readonly Face[] = ['U', 'D', 'L', 'R', 'F', 'B'];
 const AXIS: Record<Face, string> = { U: 'y', D: 'y', L: 'x', R: 'x', F: 'z', B: 'z' };
 const TURNS: readonly Turns[] = [1, 2, 3];
+const DEFAULT_SCRAMBLE_LENGTH = 25;
 
-export function scramble(rng: Rng, length = 25): Move[] {
+export function scramble(rng: Rng, length = DEFAULT_SCRAMBLE_LENGTH): Move[] {
   const out: Move[] = [];
   while (out.length < length) {
     const face = FACES[Math.floor(rng() * 6)];
@@ -626,7 +679,7 @@ Replace `src/view/CubeView.tsx` with the animating version. Key design: cubelets
 ```tsx
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
-import { useMemo, useRef } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import type { Group } from 'three';
 import type { FaceName } from '../core/facelets/facelets';
 import type { Move } from '../core/cube-model/moves';
@@ -651,7 +704,8 @@ const FACE_AXIS: Record<string, Vec3> = {
 
 export interface Turn { move: Move; durationMs: number; onComplete: () => void }
 
-function Cubelet({ pos, facelets }: { pos: Vec3; facelets: FaceName[] }) {
+// [frontend-patterns] memoized — 26 instances; skip re-render when pos/facelets are unchanged
+const Cubelet = memo(function Cubelet({ pos, facelets }: { pos: Vec3; facelets: FaceName[] }) {
   const colors = useMemo(
     () => BOX_NORMALS.map((n) => {
       const idx = faceletIndexAt(pos, n);
@@ -667,7 +721,7 @@ function Cubelet({ pos, facelets }: { pos: Vec3; facelets: FaceName[] }) {
       ))}
     </mesh>
   );
-}
+});
 
 function TurningGroup({ turn, children }: { turn: Turn; children: React.ReactNode }) {
   const ref = useRef<Group>(null);
@@ -717,14 +771,17 @@ Direction sanity: a clockwise U (viewed from above, i.e. looking down −y) is a
 Replace `src/App.tsx`:
 
 ```tsx
-import { useCallback, useMemo, useReducer } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useReducer } from 'react';
 import { solved, type CubeState } from './core/cube-model/state';
 import { apply } from './core/cube-model/apply';
 import type { Move } from './core/cube-model/moves';
 import { toFacelets } from './core/facelets/facelets';
 import { mulberry32 } from './core/scramble/rng';
 import { scramble } from './core/scramble/scramble';
-import { CubeView, type Turn } from './view/CubeView';
+import { ErrorBoundary } from './view/ErrorBoundary';
+import type { Turn } from './view/CubeView';
+
+const CubeView = lazy(() => import('./view/CubeView').then((m) => ({ default: m.CubeView })));
 
 type Phase = 'SOLVED' | 'SCRAMBLING' | 'SCRAMBLED' | 'PLAYING' | 'PAUSED';
 
@@ -770,7 +827,11 @@ export default function App() {
 
   return (
     <div data-testid="app" data-phase={s.phase} style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-      <CubeView facelets={facelets} turn={turn} />
+      <ErrorBoundary>
+        <Suspense fallback={<div style={{ display: 'grid', placeItems: 'center', height: '100%' }}>Loading cube…</div>}>
+          <CubeView facelets={facelets} turn={turn} />
+        </Suspense>
+      </ErrorBoundary>
       <div style={{ position: 'absolute', bottom: 16, left: 0, right: 0, display: 'flex', justifyContent: 'center', gap: 12 }}>
         <button data-testid="scramble" onClick={onScramble} style={{ fontSize: 20, padding: '12px 24px' }}>
           🔀 Scramble
@@ -795,7 +856,7 @@ git add -A && git commit -m "feat: animated 25-move scramble with seeded RNG and
 
 ---
 
-### Task 4: Solve through Cross — solver scaffold, Daisy + Cross stages, playback skeleton
+### Task 4: [tdd-workflow] Solve through Cross — solver scaffold, Daisy + Cross stages, playback skeleton
 
 **Depends on:** Task 3
 
@@ -985,14 +1046,13 @@ import type { Move, Turns } from '../cube-model/moves';
 export function cleanup(moves: readonly Move[]): Move[] {
   const out: Move[] = [];
   for (const m of moves) {
-    let cur = m;
-    while (out.length > 0 && out[out.length - 1].face === cur.face) {
+    let merged: Move | undefined = m;
+    while (merged && out.length > 0 && out[out.length - 1].face === merged.face) {
       const prev = out.pop()!;
-      const t = (prev.turns + cur.turns) % 4;
-      if (t === 0) { cur = null as unknown as Move; break; }
-      cur = { face: cur.face, turns: t as Turns };
+      const combined = (prev.turns + merged.turns) % 4;
+      merged = combined === 0 ? undefined : { face: merged.face, turns: combined as Turns };
     }
-    if (cur) out.push(cur);
+    if (merged) out.push(merged);
   }
   return out;
 }
@@ -1272,7 +1332,7 @@ Run: `npm test` → PASS. Commit: `git add -A && git commit -m "feat: solve() pi
 Extend `src/App.tsx` (full replacement):
 
 ```tsx
-import { useCallback, useMemo, useReducer } from 'react';
+import { lazy, Suspense, useCallback, useMemo, useReducer } from 'react';
 import { solved, type CubeState } from './core/cube-model/state';
 import { apply } from './core/cube-model/apply';
 import type { Move } from './core/cube-model/moves';
@@ -1282,7 +1342,10 @@ import { scramble } from './core/scramble/scramble';
 import { solve } from './core/solver/solve';
 import type { Stage } from './core/solver/types';
 import { buildSnapshots } from './core/playback/snapshots';
-import { CubeView, type Turn } from './view/CubeView';
+import { ErrorBoundary } from './view/ErrorBoundary';
+import type { Turn } from './view/CubeView';
+
+const CubeView = lazy(() => import('./view/CubeView').then((m) => ({ default: m.CubeView })));
 
 type Phase = 'SOLVED' | 'SCRAMBLING' | 'SCRAMBLED' | 'PLAYING' | 'PAUSED';
 
@@ -1372,7 +1435,11 @@ export default function App() {
 
   return (
     <div data-testid="app" data-phase={s.phase} style={{ width: '100vw', height: '100vh', position: 'relative' }}>
-      <CubeView facelets={facelets} turn={turn} />
+      <ErrorBoundary>
+        <Suspense fallback={<div style={{ display: 'grid', placeItems: 'center', height: '100%' }}>Loading cube…</div>}>
+          <CubeView facelets={facelets} turn={turn} />
+        </Suspense>
+      </ErrorBoundary>
       {stageName && (
         <div data-testid="stage-label" style={{ position: 'absolute', top: 16, left: 0, right: 0, textAlign: 'center', fontSize: 28, fontWeight: 700 }}>
           {stageName}
@@ -1402,7 +1469,7 @@ git add -A && git commit -m "feat: solve-through-cross playback with stage label
 
 ---
 
-### Task 5: First Layer stage
+### Task 5: [tdd-workflow] First Layer stage
 
 **Depends on:** Task 4
 
@@ -1505,7 +1572,7 @@ git add -A && git commit -m "feat: first-layer corner stage via tutorial righty 
 
 ---
 
-### Task 6: Second Layer stage
+### Task 6: [tdd-workflow] Second Layer stage
 
 **Depends on:** Task 5
 
@@ -1619,7 +1686,7 @@ git add -A && git commit -m "feat: second-layer edge stage via tutorial left/rig
 
 ---
 
-### Task 7: OLL stage (2-look)
+### Task 7: [tdd-workflow] OLL stage (2-look)
 
 **Depends on:** Task 6
 
@@ -1731,7 +1798,7 @@ git add -A && git commit -m "feat: 2-look OLL stage (edge cross + Sune corners)"
 
 ---
 
-### Task 8: PLL stage (2-look) + the 10k correctness gate
+### Task 8: [tdd-workflow] PLL stage (2-look) + the 10k correctness gate
 
 **Depends on:** Task 7
 
@@ -1892,9 +1959,11 @@ export { STAGE_NAMES, StageCapError, type Stage, type StageName } from './solver
 export { buildSnapshots } from './playback/snapshots';
 ```
 
-- [ ] **Step 4: Run, verify pass** — `npm test` → all PASS including the 10k gate. (T-perm/U-perm transcription errors show up here instantly: verify each alg in isolation — apply to solved, assert the documented swap/cycle and nothing else outside the U layer. The direction-by-simulation step makes Ua/Ub choice self-correcting.)
+- [ ] **Step 4: JSDoc the public API** — [coding-standards] every function re-exported through `src/core/index.ts` (`apply`, `applyAll`, `move`, `inverse`, `parse`, `format`, `scramble`, `assertSolvable`, `toFacelets`, `solve`, `buildSnapshots`) gets JSDoc on its definition with `@param`/`@returns`, plus `@throws` where applicable (`UnsolvableCubeError` on `assertSolvable`/`solve`, `StageCapError` on `solve`, `Error` on `parse`). Run `npm run lint` after.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Run, verify pass** — `npm test` → all PASS including the 10k gate. (T-perm/U-perm transcription errors show up here instantly: verify each alg in isolation — apply to solved, assert the documented swap/cycle and nothing else outside the U layer. The direction-by-simulation step makes Ua/Ub choice self-correcting.)
+
+- [ ] **Step 6: Commit**
 
 ```bash
 git add -A && git commit -m "feat: 2-look PLL stage — full solver passes 10k-scramble gate"
@@ -1902,7 +1971,7 @@ git add -A && git commit -m "feat: 2-look PLL stage — full solver passes 10k-s
 
 ---
 
-### Task 9: Full playback controls — step, scrub, stage jump, speed
+### Task 9: [frontend-patterns] Full playback controls — step, scrub, stage jump, speed
 
 **Depends on:** Task 8
 
@@ -2056,6 +2125,25 @@ const controls = useRef<OrbitControlsImpl>(null);
 
 (`controls.reset()` restores the saved initial camera; drei saves it on mount. Double-click handler optional: add `onDoubleClick` on the wrapper div calling the same reset.)
 
+- [ ] **Step 3b: Keyboard support + aria-labels** — [frontend-patterns]
+
+In `App.tsx`, add a window keydown handler (Space = play/pause, ArrowRight/ArrowLeft = step, ignored while focus is on a form control):
+
+```tsx
+useEffect(() => {
+  const onKey = (ev: KeyboardEvent) => {
+    if (ev.target instanceof HTMLElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(ev.target.tagName)) return;
+    if (ev.code === 'Space') { ev.preventDefault(); dispatch({ type: s.phase === 'PLAYING' ? 'PAUSE' : 'PLAY' }); }
+    if (ev.code === 'ArrowRight') dispatch({ type: 'SEEK', index: s.moveIndex + 1 });
+    if (ev.code === 'ArrowLeft') dispatch({ type: 'SEEK', index: s.moveIndex - 1 });
+  };
+  window.addEventListener('keydown', onKey);
+  return () => window.removeEventListener('keydown', onKey);
+}, [s.phase, s.moveIndex]);
+```
+
+(add `useEffect` to the React import). In `ControlPanel.tsx`, give every icon-only button an `aria-label`: ⏮ "Jump to previous stage", ◀ "Step back", ▶ "Play", ⏸ "Pause", ▶︎ "Step forward", ⏭ "Jump to next stage", and the speed select `aria-label="Playback speed"`.
+
 - [ ] **Step 4: Lint + tests + manual check**
 
 `npm run lint && npm test` → PASS. Manual: scramble → solve → play; pause mid-stage; step both directions; yank the scrubber rapidly during playback (no glitches, instant snaps); click each timeline segment (jumps to stage start, label updates); change speed mid-play; reset view after orbiting. Full playback ends with `data-solved="true"` and a solved-looking cube.
@@ -2068,7 +2156,7 @@ git add -A && git commit -m "feat: full playback controls — step, scrub timeli
 
 ---
 
-### Task 10: E2E journey
+### Task 10: [tdd-workflow] E2E journey
 
 **Depends on:** Task 9
 
@@ -2146,3 +2234,11 @@ git push
 - Spec coverage: walking skeleton (Task 1), engine+tables (2), scramble+seeded RNG (3), validate+daisy+cross+snapshots+state machine (4), first/second layer (5/6), 2-look OLL/PLL + 10k gate (7/8), full controls+camera reset (9), e2e (10). Stage-boundary cleanup in every stage solver. Empty-stage emission handled by pipeline (stages always 6).
 - Known intentional deviation: step-back while paused snaps via snapshot instead of animating the reverse turn — visually instant, simpler, and scrub-equivalent; the design's reverse-turn animation applies to the PLAYING flow. Revisit only if stepping feels wrong in manual testing.
 - Solver alg variants (second-layer insert leading-U direction, Sune anchor, T-perm headlight side, Ua/Ub direction) are the known risk points; each task names its check and the fix location. The Ua/Ub choice is self-correcting by simulation.
+
+---
+**Skills applied (plan-polish):** coding-standards, tdd-workflow, frontend-patterns
+**Hard conflicts resolved:** 1 — `null as unknown as Move` cast in `cleanup()` replaced with `Move | undefined` (user ruling: follow skill).
+**Soft conflicts noted (not applied, with reasons):**
+- tdd-workflow wanted the Playwright skeleton scaffolded before Task 3 — kept at Task 10: the journey test needs the full solver, and the unit/property suites already provide red-green cycles from Task 1.
+- frontend-patterns wanted a compound-component ControlPanel and a `useTurnAnimation` hook extraction — kept the simpler shapes per YAGNI; revisit only if the panel or animator grows.
+- tdd-workflow wanted an explicit refactor sub-step in every task — covered instead by the global constraint note (refactor while green before each commit).
