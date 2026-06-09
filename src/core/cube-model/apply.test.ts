@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { isSolved, solved } from './state';
-import { apply } from './apply';
+import { apply, applyAll } from './apply';
 import { inverse, move } from './moves';
 import { parse } from '../notation/notation';
 
@@ -44,4 +44,11 @@ test('U permutes only the U layer and flips nothing', () => {
   expect(s.ep).toEqual([3, 0, 1, 2, 4, 5, 6, 7, 8, 9, 10, 11]);
   expect(s.co.every((v) => v === 0)).toBe(true);
   expect(s.eo.every((v) => v === 0)).toBe(true);
+});
+
+test('applyAll equals applying each move in sequence', () => {
+  const seq = parse("R U2 F' D L2 B");
+  let manual = solved();
+  for (const m of seq) manual = apply(manual, m);
+  expect(applyAll(solved(), seq)).toEqual(manual);
 });
