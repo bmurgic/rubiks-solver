@@ -33,7 +33,7 @@ A face turn in standard notation: one of 18 — {U,D,L,R,F,B} × {quarter CW, qu
 A random sequence of ~25 **Moves** applied to the solved state to produce the starting **Cube State**. Always solvable by construction.
 
 **Mesh**:
-The 3D box rendered for a cubie in the view layer. A fixed `slot → mesh` mapping links the logical model to the render grid.
+A 3D box fixed at one grid location in the view layer — it represents a *location*, not a physical **Cubie**. 26 meshes (8 corners, 12 edges, 6 centers); sticker colors are recolored from derived **Facelets** on every state change. A turn visually rotates the face's fixed set of 9 meshes under a temporary pivot, then resets and recolors.
 
 **Stage**:
 One named phase of the layer-by-layer solution holding an ordered list of **Moves**. The canonical sequence: **Daisy**, Cross, First Layer, Second Layer, OLL, PLL. Used as a label and jump target; not the atomic step unit.
