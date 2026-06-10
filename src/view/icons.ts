@@ -11,4 +11,6 @@ export {
   ArrowRight01Icon as StepForwardIcon,
   NextIcon as NextStageIcon,
   Target01Icon as ResetViewIcon,
+  ArrowDown01Icon as ChevronDownIcon,
+  ArrowUp01Icon as ChevronUpIcon,
 } from '@hugeicons/core-free-icons';

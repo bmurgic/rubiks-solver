@@ -12,6 +12,8 @@ import { format } from './core/notation/notation';
 import { ErrorBoundary } from './view/ErrorBoundary';
 import type { Turn } from './view/CubeView';
 import { ControlPanel } from './view/ControlPanel';
+import { TeachingPanel } from './view/TeachingPanel';
+import { stageIndexAt } from './view/stage-index';
 
 const CubeView = lazy(() => import('./view/CubeView').then((m) => ({ default: m.CubeView })));
 
@@ -198,6 +200,9 @@ export default function App() {
       ? format([s.solution.moves[s.moveIndex]])
       : '';
 
+  const hasSolution = s.solution !== null && s.solution.moves.length > 0;
+  const currentStage = hasSolution ? stageIndexAt(s.solution!.stageStart, s.moveIndex) : -1;
+
   return (
     <div
       data-testid="app"
@@ -231,21 +236,28 @@ export default function App() {
           </div>
         </div>
       )}
-      <ControlPanel
-        phase={s.phase}
-        stages={s.solution?.stages ?? null}
-        stageStart={s.solution?.stageStart ?? []}
-        moveIndex={s.moveIndex}
-        totalMoves={s.solution?.moves.length ?? 0}
-        speed={s.speed}
-        currentMove={currentMove}
-        onScramble={onScramble}
-        onSolve={onSolve}
-        onPlay={onPlay}
-        onPause={onPause}
-        onSeek={onSeek}
-        onSpeed={onSpeed}
-      />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-3 p-3 sm:p-4">
+        <TeachingPanel
+          stages={s.solution?.stages ?? null}
+          currentStage={currentStage}
+          hasSolution={hasSolution}
+        />
+        <ControlPanel
+          phase={s.phase}
+          stages={s.solution?.stages ?? null}
+          stageStart={s.solution?.stageStart ?? []}
+          moveIndex={s.moveIndex}
+          totalMoves={s.solution?.moves.length ?? 0}
+          speed={s.speed}
+          currentMove={currentMove}
+          onScramble={onScramble}
+          onSolve={onSolve}
+          onPlay={onPlay}
+          onPause={onPause}
+          onSeek={onSeek}
+          onSpeed={onSpeed}
+        />
+      </div>
     </div>
   );
 }

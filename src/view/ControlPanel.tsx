@@ -37,7 +37,7 @@ export function ControlPanel(p: ControlPanelProps) {
   const atEnd = p.moveIndex >= p.totalMoves;
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3 sm:p-4">
+    <div className="flex w-full justify-center">
       <div className="pointer-events-auto flex w-full max-w-2xl flex-col gap-3 rounded-2xl bg-base-200/80 p-3 shadow-2xl ring-1 ring-base-content/10 backdrop-blur-md sm:p-4">
         {haveSolution && (
           <>
