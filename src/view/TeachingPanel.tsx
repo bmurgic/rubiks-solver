@@ -8,6 +8,7 @@ interface TeachingPanelProps {
   stages: readonly Stage[] | null;
   currentStage: number; // index into stages, or -1 when there is no solution
   hasSolution: boolean;
+  actionWhy: string | null; // current action's why, null outside a solve
 }
 
 function activeLesson(stages: readonly Stage[] | null, currentStage: number, hasSolution: boolean) {
@@ -16,7 +17,7 @@ function activeLesson(stages: readonly Stage[] | null, currentStage: number, has
     : null;
 }
 
-export function TeachingPanel({ stages, currentStage, hasSolution }: TeachingPanelProps) {
+export function TeachingPanel({ stages, currentStage, hasSolution, actionWhy }: TeachingPanelProps) {
   const [open, setOpen] = useState(true);
   const lesson = activeLesson(stages, currentStage, hasSolution);
 
@@ -24,6 +25,17 @@ export function TeachingPanel({ stages, currentStage, hasSolution }: TeachingPan
     <>
       <p className="font-medium">{lesson.goal}</p>
       <p className="mt-1 opacity-70">{lesson.why}</p>
+      {actionWhy && (
+        <p
+          data-testid="action-why"
+          aria-live="polite"
+          aria-atomic="true"
+          className="mt-2 border-t border-base-content/10 pt-2"
+        >
+          <span className="font-display font-semibold">Now: </span>
+          <span className="opacity-80">{actionWhy}</span>
+        </p>
+      )}
     </>
   ) : (
     <p className="opacity-70">{METHOD_INTRO}</p>
@@ -59,7 +71,10 @@ export function TeachingPanel({ stages, currentStage, hasSolution }: TeachingPan
 
       {/* Desktop: fixed left rail with the full roadmap + active detail. */}
       <div className="pointer-events-none fixed left-3 top-1/2 z-10 hidden w-72 -translate-y-1/2 lg:block">
-        <div className="pointer-events-auto rounded-2xl bg-base-200/80 p-4 shadow-2xl ring-1 ring-base-content/10 backdrop-blur-md">
+        <div
+          data-testid="teaching-rail"
+          className="pointer-events-auto rounded-2xl bg-base-200/80 p-4 shadow-2xl ring-1 ring-base-content/10 backdrop-blur-md"
+        >
           <h2 className="font-display text-base font-semibold">The beginner method</h2>
           <ol className="mt-3 flex flex-col gap-1.5">
             {STAGE_NAMES.map((name, i) => {

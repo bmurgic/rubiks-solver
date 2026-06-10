@@ -19,6 +19,7 @@ const CubeView = lazy(() => import('./view/CubeView').then((m) => ({ default: m.
 
 const SCRAMBLE_MS = 180;
 const PLAY_MS = 300;
+const DWELL_MS = 800;
 const DEFAULT_SPEED = 1;
 
 type Phase = 'SOLVED' | 'SCRAMBLING' | 'SCRAMBLED' | 'PLAYING' | 'PAUSED';
@@ -27,6 +28,8 @@ interface Solution {
   readonly stages: readonly Stage[];
   readonly moves: readonly Move[]; // flattened
   readonly stageStart: readonly number[]; // first move index of each stage
+  readonly groupStart: readonly number[]; // first move index of each action group
+  readonly groupWhy: readonly string[]; // parallel to groupStart
   readonly snapshots: readonly CubeState[]; // length moves+1
 }
 
@@ -40,6 +43,7 @@ interface AppState {
   solveError: string | null;
   speed: number;
   autoContinue: boolean; // play through stage boundaries instead of pausing
+  isDwelling: boolean; // brief between-actions hold while PLAYING
 }
 
 type Action =
@@ -52,18 +56,25 @@ type Action =
   | { type: 'PLAY_TURN_DONE' }
   | { type: 'SEEK'; index: number }
   | { type: 'SET_SPEED'; speed: number }
-  | { type: 'TOGGLE_AUTO' };
+  | { type: 'TOGGLE_AUTO' }
+  | { type: 'DWELL_DONE' };
 
 function buildSolution(cube: CubeState): Solution {
   const stages = solve(cube);
   const moves = stages.flatMap((st) => [...st.moves]);
   const stageStart: number[] = [];
+  const groupStart: number[] = [];
+  const groupWhy: string[] = [];
   let acc = 0;
   for (const st of stages) {
     stageStart.push(acc);
-    acc += st.moves.length;
+    for (const g of st.groups) {
+      groupStart.push(acc);
+      groupWhy.push(g.why);
+      acc += g.moves.length;
+    }
   }
-  return { stages, moves, stageStart, snapshots: buildSnapshots(cube, moves) };
+  return { stages, moves, stageStart, groupStart, groupWhy, snapshots: buildSnapshots(cube, moves) };
 }
 
 function getErrorMessage(err: unknown): string {
@@ -82,6 +93,7 @@ function reducer(s: AppState, a: Action): AppState {
         solution: null,
         moveIndex: 0,
         solveError: null,
+        isDwelling: false,
       };
     case 'SCRAMBLE_TURN_DONE': {
       const cube = apply(s.cube, s.scrambleQueue[s.scrambleIndex]);
@@ -101,7 +113,7 @@ function reducer(s: AppState, a: Action): AppState {
         ? { ...s, phase: 'PLAYING' }
         : s;
     case 'PAUSE':
-      return s.phase === 'PLAYING' ? { ...s, phase: 'PAUSED' } : s;
+      return s.phase === 'PLAYING' ? { ...s, phase: 'PAUSED', isDwelling: false } : s;
     case 'PLAY_TURN_DONE': {
       if (!s.solution) return s;
       const next = s.moveIndex + 1;
@@ -113,6 +125,10 @@ function reducer(s: AppState, a: Action): AppState {
       if (!s.autoContinue && s.solution.stageStart.includes(next)) {
         return { ...s, cube, moveIndex: next, phase: 'PAUSED' };
       }
+      // Brief dwell at each action boundary so the caption can be read.
+      if (s.solution.groupStart.includes(next)) {
+        return { ...s, cube, moveIndex: next, isDwelling: true };
+      }
       return { ...s, cube, moveIndex: next };
     }
     case 'SEEK': {
@@ -120,12 +136,14 @@ function reducer(s: AppState, a: Action): AppState {
       const index = Math.max(0, Math.min(a.index, s.solution.moves.length));
       // cancel any in-flight turn by snapping phase to PAUSED; cube snaps to the snapshot
       const phase: Phase = index >= s.solution.moves.length ? 'SOLVED' : 'PAUSED';
-      return { ...s, cube: s.solution.snapshots[index], moveIndex: index, phase };
+      return { ...s, cube: s.solution.snapshots[index], moveIndex: index, phase, isDwelling: false };
     }
     case 'SET_SPEED':
       return { ...s, speed: a.speed };
     case 'TOGGLE_AUTO':
       return { ...s, autoContinue: !s.autoContinue };
+    case 'DWELL_DONE':
+      return s.isDwelling ? { ...s, isDwelling: false } : s;
   }
 }
 
@@ -139,6 +157,7 @@ const INITIAL_STATE: AppState = {
   solveError: null,
   speed: DEFAULT_SPEED,
   autoContinue: false,
+  isDwelling: false,
 };
 
 export default function App() {
@@ -190,6 +209,12 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [s.phase, s.moveIndex]);
 
+  useEffect(() => {
+    if (s.phase !== 'PLAYING' || !s.isDwelling) return;
+    const t = setTimeout(() => dispatch({ type: 'DWELL_DONE' }), DWELL_MS / s.speed);
+    return () => clearTimeout(t);
+  }, [s.phase, s.isDwelling, s.speed]);
+
   let turn: Turn | null = null;
   if (s.phase === 'SCRAMBLING' && s.scrambleIndex < s.scrambleQueue.length) {
     turn = {
@@ -197,7 +222,12 @@ export default function App() {
       durationMs: SCRAMBLE_MS,
       onComplete: onScrambleTurnDone,
     };
-  } else if (s.phase === 'PLAYING' && s.solution && s.moveIndex < s.solution.moves.length) {
+  } else if (
+    s.phase === 'PLAYING' &&
+    !s.isDwelling &&
+    s.solution &&
+    s.moveIndex < s.solution.moves.length
+  ) {
     turn = {
       move: s.solution.moves[s.moveIndex],
       durationMs: PLAY_MS / s.speed,
@@ -212,6 +242,10 @@ export default function App() {
 
   const hasSolution = s.solution !== null && s.solution.moves.length > 0;
   const currentStage = hasSolution ? stageIndexAt(s.solution!.stageStart, s.moveIndex) : -1;
+  const actionWhy =
+    hasSolution && s.moveIndex < s.solution!.moves.length
+      ? s.solution!.groupWhy[stageIndexAt(s.solution!.groupStart, s.moveIndex)]
+      : null;
 
   return (
     <div
@@ -251,6 +285,7 @@ export default function App() {
           stages={s.solution?.stages ?? null}
           currentStage={currentStage}
           hasSolution={hasSolution}
+          actionWhy={actionWhy}
         />
         <ControlPanel
           phase={s.phase}
