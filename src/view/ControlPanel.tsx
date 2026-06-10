@@ -1,4 +1,6 @@
 import { STAGE_NAMES, type Stage } from '../core/solver/types';
+import { STAGE_COLORS } from './stage-colors';
+import { stageIndexAt } from './stage-index';
 import {
   HugeiconsIcon,
   ScrambleIcon,
@@ -10,15 +12,6 @@ import {
   StepForwardIcon,
   NextStageIcon,
 } from './icons';
-
-const STAGE_COLORS: readonly string[] = [
-  '#f6e58d',
-  '#ffbe76',
-  '#ff7979',
-  '#badc58',
-  '#7ed6df',
-  '#e056fd',
-];
 
 const LAST_STAGE_INDEX = STAGE_NAMES.length - 1;
 
@@ -40,14 +33,7 @@ export interface ControlPanelProps {
 
 export function ControlPanel(p: ControlPanelProps) {
   const haveSolution = p.stages !== null && p.totalMoves > 0;
-  const stageIndexAt = (mi: number) => {
-    let idx = 0;
-    p.stageStart.forEach((s, i) => {
-      if (mi >= s) idx = i;
-    });
-    return idx;
-  };
-  const curStage = haveSolution ? stageIndexAt(p.moveIndex) : -1;
+  const curStage = haveSolution ? stageIndexAt(p.stageStart, p.moveIndex) : -1;
   const atEnd = p.moveIndex >= p.totalMoves;
 
   return (
