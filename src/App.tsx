@@ -191,7 +191,7 @@ export default function App() {
     const onKey = (ev: KeyboardEvent) => {
       if (
         ev.target instanceof HTMLElement &&
-        ['INPUT', 'SELECT', 'TEXTAREA'].includes(ev.target.tagName)
+        ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(ev.target.tagName)
       ) {
         return;
       }
@@ -199,8 +199,14 @@ export default function App() {
         ev.preventDefault();
         dispatch({ type: s.phase === 'PLAYING' ? 'PAUSE' : 'PLAY' });
       }
-      if (ev.code === 'ArrowRight') dispatch({ type: 'SEEK', index: s.moveIndex + 1 });
-      if (ev.code === 'ArrowLeft') dispatch({ type: 'SEEK', index: s.moveIndex - 1 });
+      if (ev.code === 'ArrowRight') {
+        ev.preventDefault();
+        dispatch({ type: 'SEEK', index: s.moveIndex + 1 });
+      }
+      if (ev.code === 'ArrowLeft') {
+        ev.preventDefault();
+        dispatch({ type: 'SEEK', index: s.moveIndex - 1 });
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
