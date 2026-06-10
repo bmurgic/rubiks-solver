@@ -3,8 +3,8 @@ import { Corner, Edge, isSolved } from '../../cube-model/state';
 import { applyAll } from '../../cube-model/apply';
 import { parse } from '../../notation/notation';
 import { Emitter, rotateUUntil } from '../emitter';
-import { cornerSticker } from '../recognition';
-import { StageCapError, type Stage } from '../types';
+import { cornerRef, cornerSticker, edgeRef } from '../recognition';
+import { StageCapError, type PieceRef, type Stage } from '../types';
 
 export const PLL_MOVE_CAP = 160;
 export const PLL_CORNER_GUARD = 4;
@@ -38,6 +38,11 @@ const FACE_CORNERS: Record<SideFace, readonly [number, number]> = {
 // Order of U-edge slots cycled by a single U turn: U sends UB→UR→UF→UL→UB.
 const U_TURN_ORDER: readonly number[] = [Edge.UB, Edge.UR, Edge.UF, Edge.UL];
 const U_CYCLE_LENGTH = 4;
+
+const uCornerRefs = (s: CubeState): PieceRef[] => U_CORNER_SLOTS.map((sl) => cornerRef(s.cp[sl]));
+
+const unsolvedEdges = (s: CubeState): PieceRef[] =>
+  U_EDGE_SLOTS.filter((sl) => s.ep[sl] !== sl).map((sl) => edgeRef(s.ep[sl]));
 
 function headlightsOn(s: CubeState, f: SideFace): boolean {
   const [a, b] = FACE_CORNERS[f];
@@ -73,13 +78,14 @@ function permuteCorners(e: Emitter): void {
     if (anyHeadlights) {
       e.action(
         'Aim the matching corner pair (headlights) to the left, then swap the other two corners with the T-perm.',
+        uCornerRefs(e.state),
         () => {
           rotateUUntil(e, (s) => headlightsOn(s, 'L'));
           e.do(T_PERM);
         },
       );
     } else {
-      e.action('No matching corner pair yet — run the T-perm once to create one.', () =>
+      e.action('No matching corner pair yet — run the T-perm once to create one.', uCornerRefs(e.state), () =>
         e.do(T_PERM),
       );
     }
@@ -109,13 +115,13 @@ function permuteEdges(e: Emitter): void {
     if (home.length === U_CYCLE_LENGTH) return;
     // H/Z case (no edges home): a single U-perm leaves a 3-cycle for next pass.
     if (home.length === 0) {
-      e.action('No top edges are in place — run a U-perm to leave just three to cycle.', () =>
+      e.action('No top edges are in place — run a U-perm to leave just three to cycle.', unsolvedEdges(e.state), () =>
         e.do(U_PERM_A),
       );
       continue;
     }
     // Exactly one edge home: park it at UB, then pick Ua/Ub by simulating both.
-    e.action('Park the solved edge at the back, then cycle the last three edges with a U-perm.', () => {
+    e.action('Park the solved edge at the back, then cycle the last three edges with a U-perm.', unsolvedEdges(e.state), () => {
       const turns = uTurnsToUB(home[0]);
       if (turns > 0) e.do(Array<string>(turns).fill('U').join(' '));
       const tryA = applyAll(e.state, parse(U_PERM_A));
@@ -131,7 +137,7 @@ export function solvePll(state: CubeState): { stage: Stage; state: CubeState } {
   const e = new Emitter(state, PLL_MOVE_CAP, 'PLL');
   permuteCorners(e);
   // Align corners home; also serves as AUF as edges finish.
-  e.action('Spin the top to line the corners up with their sides.', () =>
+  e.action('Spin the top to line the corners up with their sides.', uCornerRefs(e.state), () =>
     rotateUUntil(e, cornersHome),
   );
   permuteEdges(e);

@@ -1,6 +1,6 @@
 import type { CubeState } from '../../cube-model/state';
 import { Emitter, rotateUUntil } from '../emitter';
-import { edgeHome, edgeSlot } from '../recognition';
+import { edgeHome, edgeRef, edgeSlot } from '../recognition';
 import { EDGE_COLOR } from '../../facelets/facelets';
 import type { Face } from '../../cube-model/moves';
 import { StageCapError, type Stage } from '../types';
@@ -23,6 +23,7 @@ export function solveCross(state: CubeState): { stage: Stage; state: CubeState }
     if (destSlot === undefined) throw new StageCapError('Cross', `no U slot for side ${side}`);
     e.action(
       'Spin the top so this petal lines up with its matching side center, then drop it down with a double turn.',
+      [edgeRef(cubie)],
       () => {
         rotateUUntil(e, (s) => edgeSlot(s, cubie) === destSlot);
         e.do(`${side}2`);

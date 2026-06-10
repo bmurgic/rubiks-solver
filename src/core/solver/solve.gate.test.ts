@@ -18,6 +18,13 @@ test('10,000 random scrambles all solve to the solved state', () => {
         for (const g of stage.groups) {
           expect(g.why.trim().length).toBeGreaterThan(0);
           expect(g.moves.length).toBeGreaterThan(0);
+          for (const t of g.targets) {
+            expect(['edge', 'corner']).toContain(t.kind);
+            const max = t.kind === 'edge' ? 11 : 7;
+            expect(t.piece).toBeGreaterThanOrEqual(0);
+            expect(t.piece).toBeLessThanOrEqual(max);
+            expect(Number.isInteger(t.piece)).toBe(true);
+          }
         }
         expect(stage.groups.flatMap((g) => [...g.moves])).toEqual([...stage.moves]);
       }

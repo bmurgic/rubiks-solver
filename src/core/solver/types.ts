@@ -11,9 +11,16 @@ export const STAGE_NAMES: readonly StageName[] = [
   'PLL',
 ];
 
+export interface PieceRef {
+  readonly kind: 'edge' | 'corner';
+  readonly piece: number; // cubie id: Edge.* (0-11) or Corner.* (0-7)
+}
+
 export interface ActionGroup {
   /** Beginner-facing reason for this action (1 line). */
   readonly why: string;
+  /** Pieces the narration references; may be empty for setup-only actions. */
+  readonly targets: readonly PieceRef[];
   readonly moves: readonly Move[]; // cleaned; never empty
 }
 

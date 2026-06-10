@@ -1,8 +1,8 @@
 import type { CubeState } from '../../cube-model/state';
 import { Corner, Edge } from '../../cube-model/state';
 import { Emitter, rotateUUntil } from '../emitter';
-import { cornerSticker, edgeSticker } from '../recognition';
-import { StageCapError, type Stage } from '../types';
+import { cornerRef, cornerSticker, edgeRef, edgeSticker } from '../recognition';
+import { StageCapError, type PieceRef, type Stage } from '../types';
 
 export const OLL_MOVE_CAP = 120;
 export const OLL_EDGE_GUARD = 6;
@@ -35,6 +35,12 @@ const orientedEdgeCount = (s: CubeState): number =>
 const orientedCornerCount = (s: CubeState): number =>
   U_CORNER_SLOTS.filter((sl) => cornerUp(s, sl)).length;
 
+const unorientedEdges = (s: CubeState): PieceRef[] =>
+  U_EDGE_SLOTS.filter((sl) => !edgeUp(s, sl)).map((sl) => edgeRef(s.ep[sl]));
+
+const unorientedCorners = (s: CubeState): PieceRef[] =>
+  U_CORNER_SLOTS.filter((sl) => !cornerUp(s, sl)).map((sl) => cornerRef(s.cp[sl]));
+
 const isOppositeEdgePair = (s: CubeState): boolean =>
   (edgeUp(s, Edge.UR) && edgeUp(s, Edge.UL)) || (edgeUp(s, Edge.UF) && edgeUp(s, Edge.UB));
 
@@ -47,7 +53,7 @@ function orientEdges(e: Emitter): void {
     if (count === 0) {
       // Dot: any U setup works — F R U R' U' F' produces an L which the next
       // iteration will resolve.
-      e.action('No yellow edges are up yet — run the edge algorithm once to get an L shape.', () =>
+      e.action('No yellow edges are up yet — run the edge algorithm once to get an L shape.', unorientedEdges(e.state), () =>
         e.do(F_SEXY_F),
       );
       continue;
@@ -56,6 +62,7 @@ function orientEdges(e: Emitter): void {
       if (isOppositeEdgePair(e.state)) {
         e.action(
           'Two yellow edges form a line — lay it flat, then run the edge algorithm to finish the yellow cross.',
+          unorientedEdges(e.state),
           () => {
             // Line: rotate until the line lies horizontal (UR + UL oriented).
             rotateUUntil(e, (s) => edgeUp(s, Edge.UR) && edgeUp(s, Edge.UL));
@@ -65,6 +72,7 @@ function orientEdges(e: Emitter): void {
       } else {
         e.action(
           'Two yellow edges form an L — point it to the back-left, then run the mirrored edge algorithm.',
+          unorientedEdges(e.state),
           () => {
             // L shape: rotate until the L sits at UB + UL (back/left oriented).
             rotateUUntil(e, (s) => edgeUp(s, Edge.UB) && edgeUp(s, Edge.UL));
@@ -102,7 +110,7 @@ function orientCorners(e: Emitter): void {
       why = 'Two yellow corners are done — set the anchor at the front-left, then run the Sune.';
       pred = (s) => cornerSticker(s, Corner.UFL, 'F') === 'U';
     }
-    e.action(why, () => {
+    e.action(why, unorientedCorners(e.state), () => {
       rotateUUntil(e, pred);
       e.do(SUNE);
     });

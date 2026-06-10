@@ -2,7 +2,7 @@ import type { CubeState } from '../../cube-model/state';
 import { Edge } from '../../cube-model/state';
 import type { Face } from '../../cube-model/moves';
 import { Emitter, rotateUUntil } from '../emitter';
-import { edgeSlot, whiteEdgeFace } from '../recognition';
+import { edgeRef, edgeSlot, whiteEdgeFace } from '../recognition';
 import { StageCapError, type Stage } from '../types';
 
 export const DAISY_MOVE_CAP = 60;
@@ -60,7 +60,9 @@ function placeFromULayer(e: Emitter, slot: number): 'done' | 'continue' {
   const white = whiteEdgeFace(e.state, slot);
   if (white === 'U') return 'done';
   // White faces a side — drop into E layer through that side face.
-  e.action('This petal is flipped — push it out into the middle layer.', () => e.do(white));
+  e.action('This petal is flipped — push it out into the middle layer.', [edgeRef(e.state.ep[slot])], () =>
+    e.do(white),
+  );
   return 'continue';
 }
 
@@ -73,6 +75,7 @@ function placeFromDLayer(e: Emitter, slot: number): 'done' | 'continue' {
     if (destSlot === undefined) throw new StageCapError('Daisy', `no U slot for side ${side}`);
     e.action(
       'A white edge points down — spin the top to free its petal spot, then flip it up with a double turn.',
+      [edgeRef(e.state.ep[slot])],
       () => {
         rotateUUntil(e, (s) => !isPetalAt(s, destSlot));
         e.do(`${side}2`);
@@ -83,6 +86,7 @@ function placeFromDLayer(e: Emitter, slot: number): 'done' | 'continue' {
   // White on side — single side turn moves it to the E layer.
   e.action(
     'A bottom edge shows white sideways — turn that side to send it into the middle layer.',
+    [edgeRef(e.state.ep[slot])],
     () => e.do(side),
   );
   return 'continue';
@@ -96,7 +100,7 @@ function placeFromELayer(e: Emitter, slot: number): 'done' {
   const destFace = lift[0] as Face;
   const destSlot = U_SLOT_OF_FACE[destFace];
   if (destSlot === undefined) throw new StageCapError('Daisy', `no U slot for face ${destFace}`);
-  e.action('Make room on top, then lift the white edge up into the daisy.', () => {
+  e.action('Make room on top, then lift the white edge up into the daisy.', [edgeRef(e.state.ep[slot])], () => {
     rotateUUntil(e, (s) => !isPetalAt(s, destSlot));
     e.do(lift);
   });

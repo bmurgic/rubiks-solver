@@ -3,7 +3,7 @@ import type { Move } from '../cube-model/moves';
 import { apply } from '../cube-model/apply';
 import { parse } from '../notation/notation';
 import { cleanup } from './cleanup';
-import { StageCapError, type ActionGroup, type Stage, type StageName } from './types';
+import { StageCapError, type ActionGroup, type PieceRef, type Stage, type StageName } from './types';
 
 const ROTATE_U_MAX_TURNS = 4;
 
@@ -23,10 +23,11 @@ export class Emitter {
   }
 
   /**
-   * Bracket one narrated action: every do() inside `fn` belongs to `why`.
+   * Bracket one narrated action: every do() inside `fn` belongs to `why`,
+   * and `targets` names the cubie(s) the narration references (may be empty).
    * The slice is cleaned on close; fully-cancelled actions are dropped.
    */
-  action(why: string, fn: () => void): void {
+  action(why: string, targets: readonly PieceRef[], fn: () => void): void {
     if (this.currentStart !== null) {
       throw new Error(`Emitter(${this.stage}): nested action() is not allowed`);
     }
@@ -34,7 +35,7 @@ export class Emitter {
     try {
       fn();
       const moves = cleanup(this.moves.slice(this.currentStart));
-      if (moves.length > 0) this.groups.push({ why, moves });
+      if (moves.length > 0) this.groups.push({ why, targets, moves });
     } finally {
       this.currentStart = null;
     }

@@ -2,7 +2,7 @@ import type { CubeState } from '../../cube-model/state';
 import { Edge } from '../../cube-model/state';
 import type { Face } from '../../cube-model/moves';
 import { Emitter, rotateUUntil } from '../emitter';
-import { edgeHome, edgeSlot, edgeSticker } from '../recognition';
+import { edgeHome, edgeRef, edgeSlot, edgeSticker } from '../recognition';
 import { StageCapError, type Stage } from '../types';
 import { U_SLOT_OF_FACE } from './daisy';
 
@@ -41,7 +41,7 @@ function sideColor(s: CubeState, slot: number): Face {
   return edgeSticker(s, slot, sideFace)! as Face;
 }
 
-function ejectFromELayer(e: Emitter, slot: number): void {
+function ejectFromELayer(e: Emitter, cubie: number, slot: number): void {
   // Stuck in the E layer (wrong slot or flipped): eject by running that slot's
   // first case alg after parking a non-middle edge at its park slot so we
   // don't disturb other already-solved middle edges.
@@ -50,7 +50,7 @@ function ejectFromELayer(e: Emitter, slot: number): void {
   if (park === undefined) {
     throw new StageCapError('Second Layer', `no U slot for face ${c0.alignFace}`);
   }
-  e.action('This middle edge is in the wrong slot — run the insert to eject it up top.', () => {
+  e.action('This middle edge is in the wrong slot — run the insert to eject it up top.', [edgeRef(cubie)], () => {
     rotateUUntil(e, (s) => !(MIDDLE_EDGES as readonly number[]).includes(s.ep[park]));
     e.do(c0.alg);
   });
@@ -68,6 +68,7 @@ function insertFromULayer(e: Emitter, cubie: number, slot: number): void {
   }
   e.action(
     'Match the edge with its side center, then send it down into its slot with the insert trigger.',
+    [edgeRef(cubie)],
     () => {
       rotateUUntil(e, (s) => edgeSlot(s, cubie) === dest);
       e.do(targetCase.alg);
@@ -82,7 +83,7 @@ export function solveSecondLayer(state: CubeState): { stage: Stage; state: CubeS
     if (cubie === undefined) break;
     let slot = edgeSlot(e.state, cubie);
     if (slot >= E_LAYER_MIN_SLOT) {
-      ejectFromELayer(e, slot);
+      ejectFromELayer(e, cubie, slot);
       slot = edgeSlot(e.state, cubie);
     }
     insertFromULayer(e, cubie, slot);

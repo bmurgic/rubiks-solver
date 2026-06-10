@@ -1,7 +1,7 @@
 import type { CubeState } from '../../cube-model/state';
 import { Corner } from '../../cube-model/state';
 import { Emitter, rotateUUntil } from '../emitter';
-import { cornerSlot } from '../recognition';
+import { cornerRef, cornerSlot } from '../recognition';
 import { StageCapError, type Stage } from '../types';
 
 export const FIRST_LAYER_MOVE_CAP = 120;
@@ -30,7 +30,7 @@ function insertCorner(e: Emitter, cubie: number): void {
   // Eject if stuck in any D slot (wrong slot, or home slot but twisted).
   const slot = cornerSlot(e.state, cubie);
   if (slot >= D_LAYER_MIN_SLOT && !cornerSolved(e.state, cubie)) {
-    e.action('This white corner is stuck in the bottom — run the trigger to pop it out.', () =>
+    e.action('This white corner is stuck in the bottom — run the trigger to pop it out.', [cornerRef(cubie)], () =>
       e.do(INSERT[slot].alg),
     );
   }
@@ -39,13 +39,14 @@ function insertCorner(e: Emitter, cubie: number): void {
     const cur = cornerSlot(e.state, cubie);
     if (cur === cubie) {
       // Home slot but twisted: run the alg again to re-eject and reinsert.
-      e.action('The corner is in its slot but twisted — run the trigger again to re-seat it.', () =>
+      e.action('The corner is in its slot but twisted — run the trigger again to re-seat it.', [cornerRef(cubie)], () =>
         e.do(alg),
       );
       continue;
     }
     e.action(
       'Spin the top until the corner sits over its home slot, then run the righty trigger.',
+      [cornerRef(cubie)],
       () => {
         rotateUUntil(e, (s) => cornerSlot(s, cubie) === above);
         e.do(alg);

@@ -4,8 +4,8 @@ import { Emitter } from './emitter';
 
 test('action() groups emitted moves under a why', () => {
   const e = new Emitter(solved(), 100, 'Daisy');
-  e.action('first', () => e.do('R U'));
-  e.action('second', () => e.do("R'"));
+  e.action('first', [], () => e.do('R U'));
+  e.action('second', [], () => e.do("R'"));
   const stage = e.toStage();
   expect(stage.groups.map((g) => g.why)).toEqual(['first', 'second']);
   expect(stage.groups[0].moves).toHaveLength(2);
@@ -14,8 +14,8 @@ test('action() groups emitted moves under a why', () => {
 
 test('cleanup runs per action and drops fully-cancelled actions', () => {
   const e = new Emitter(solved(), 100, 'Daisy');
-  e.action('merges', () => e.do('R R')); // → R2
-  e.action('cancels', () => e.do("U U'")); // → nothing
+  e.action('merges', [], () => e.do('R R')); // → R2
+  e.action('cancels', [], () => e.do("U U'")); // → nothing
   const stage = e.toStage();
   expect(stage.groups).toHaveLength(1);
   expect(stage.groups[0].moves).toEqual([{ face: 'R', turns: 2 }]);
@@ -24,8 +24,8 @@ test('cleanup runs per action and drops fully-cancelled actions', () => {
 
 test('moves do not merge across action boundaries', () => {
   const e = new Emitter(solved(), 100, 'Daisy');
-  e.action('a', () => e.do('R'));
-  e.action('b', () => e.do('R'));
+  e.action('a', [], () => e.do('R'));
+  e.action('b', [], () => e.do('R'));
   expect(e.toStage().moves).toHaveLength(2); // stays R R, not R2
 });
 
@@ -36,5 +36,17 @@ test('do() outside an action throws', () => {
 
 test('nested action() throws', () => {
   const e = new Emitter(solved(), 100, 'Daisy');
-  expect(() => e.action('outer', () => e.action('inner', () => e.do('R')))).toThrow(/nested/);
+  expect(() => e.action('outer', [], () => e.action('inner', [], () => e.do('R')))).toThrow(/nested/);
+});
+
+test('action() stores the targets on the finished group', () => {
+  const e = new Emitter(solved(), 100, 'Daisy');
+  e.action('move this edge', [{ kind: 'edge', piece: 5 }], () => e.do('R'));
+  expect(e.toStage().groups[0].targets).toEqual([{ kind: 'edge', piece: 5 }]);
+});
+
+test('action() allows empty targets for generic actions', () => {
+  const e = new Emitter(solved(), 100, 'Daisy');
+  e.action('look around', [], () => e.do('U'));
+  expect(e.toStage().groups[0].targets).toEqual([]);
 });

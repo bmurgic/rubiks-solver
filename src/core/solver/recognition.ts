@@ -6,6 +6,7 @@ import {
   EDGE_FACES,
   type FaceName,
 } from '../facelets/facelets';
+import type { PieceRef } from './types';
 
 const EDGE_STICKERS = 2;
 const CORNER_STICKERS = 3;
@@ -48,3 +49,9 @@ export function whiteEdgeFace(s: CubeState, slot: number): FaceName {
 export function edgeHome(s: CubeState, cubie: number): boolean {
   return s.ep[cubie] === cubie && s.eo[cubie] === 0;
 }
+
+/** PieceRef for an edge cubie id. */
+export const edgeRef = (piece: number): PieceRef => ({ kind: 'edge', piece });
+
+/** PieceRef for a corner cubie id. */
+export const cornerRef = (piece: number): PieceRef => ({ kind: 'corner', piece });
