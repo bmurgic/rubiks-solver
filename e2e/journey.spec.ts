@@ -93,3 +93,17 @@ test('teaching panel narrates the current action after a solve', async ({ page }
   await expect(why).toBeVisible();
   await expect(why).toHaveText(/.{20,}/); // real narration copy, not a placeholder glyph
 });
+
+test('app exposes the upcoming move face as a layer cue while paused', async ({ page }) => {
+  await page.goto('/');
+  const app = page.getByTestId('app');
+  await page.getByTestId('scramble').click();
+  await expect(app).toHaveAttribute('data-phase', 'SCRAMBLED', { timeout: 30_000 });
+
+  // No solve yet: no cue.
+  await expect(app).not.toHaveAttribute('data-cue-face', /./);
+
+  await page.getByTestId('solve').click();
+  await page.getByTestId('stage-seg-0').click(); // paused at the start, first move pending
+  await expect(app).toHaveAttribute('data-cue-face', /^[UDRLFB]$/);
+});

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer } from 'react';
 import { solved, isSolved, type CubeState } from './core/cube-model/state';
 import { apply } from './core/cube-model/apply';
-import type { Move } from './core/cube-model/moves';
+import type { Face, Move } from './core/cube-model/moves';
 import { toFacelets } from './core/facelets/facelets';
 import { mulberry32 } from './core/scramble/rng';
 import { scramble } from './core/scramble/scramble';
@@ -269,11 +269,21 @@ export default function App() {
     [s.cube, s.solution, groupIndex],
   );
 
+  // Layer cue: the face of the move that is animating (PLAYING) or pending
+  // (PAUSED / dwelling). Covers play, dwell, stage pauses, seek, and stepping.
+  const cueFace: Face | null =
+    hasSolution &&
+    s.moveIndex < s.solution!.moves.length &&
+    (s.phase === 'PLAYING' || s.phase === 'PAUSED')
+      ? s.solution!.moves[s.moveIndex].face
+      : null;
+
   return (
     <div
       data-testid="app"
       data-phase={s.phase}
       data-solved={isSolved(s.cube)}
+      data-cue-face={cueFace ?? undefined}
       className="relative h-screen w-screen overflow-hidden"
     >
       <header className="pointer-events-none absolute left-0 top-0 z-10 p-4 sm:p-5">
@@ -292,7 +302,7 @@ export default function App() {
             </div>
           }
         >
-          <CubeView facelets={facelets} turn={turn} highlightKeys={highlightKeys} cueFace={null} />
+          <CubeView facelets={facelets} turn={turn} highlightKeys={highlightKeys} cueFace={cueFace} />
         </Suspense>
       </ErrorBoundary>
       {s.solveError && (
