@@ -115,14 +115,15 @@ Imports core types only (allowed direction: view → core).
   `cueFace: Face | null`.
 - `Cubelet` gains `highlight: boolean` and `tinted: boolean`.
   Memoization stays effective: props change only on state commits.
-- **Highlight (pulse):** target cubelet's body and sticker materials get an
-  emissive glow in the accent orange (`#EA580C`), intensity breathing on a
-  ~1s cycle driven by `useFrame`. With `prefers-reduced-motion: reduce`
-  (checked via `matchMedia`), intensity is static — glow without pulse.
+- **Highlight (pulse):** target cubelet gets a translucent glow shell — a
+  slightly larger rounded box in the accent orange (`#EA580C`) whose opacity
+  breathes on a ~1s cycle driven by `useFrame`. Sticker colors stay visible
+  through it. With `prefers-reduced-motion: reduce` (checked via
+  `matchMedia`), opacity is static — glow without pulse.
 - **Tint (layer cue):** the 9 cubelets selected by `FACE_SELECTOR[cueFace]`
-  get a constant, subtle emissive lift — clearly weaker than the pulse so the
-  two read as different signals. A highlighted cubelet inside the cued layer
-  shows the pulse (pulse wins).
+  get a constant, faint indigo (`#4F46E5`) shell — clearly weaker than the
+  pulse so the two read as different signals. A highlighted cubelet inside
+  the cued layer shows the pulse (pulse wins).
 - During a turn the highlighted piece sits in the `TurningGroup`, so the glow
   rotates with the layer automatically. On `TURN_DONE` the new state commits
   and the highlight re-resolves to the piece's new slot.
