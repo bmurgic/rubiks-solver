@@ -1,5 +1,15 @@
-import type { CSSProperties } from 'react';
 import { STAGE_NAMES, type Stage } from '../core/solver/types';
+import {
+  HugeiconsIcon,
+  ScrambleIcon,
+  SolveIcon,
+  PrevStageIcon,
+  StepBackIcon,
+  PlayIcon,
+  PauseIcon,
+  StepForwardIcon,
+  NextStageIcon,
+} from './icons';
 
 const STAGE_COLORS: readonly string[] = [
   '#f6e58d',
@@ -28,64 +38,6 @@ export interface ControlPanelProps {
   onSpeed: (speed: number) => void;
 }
 
-const CONTAINER_STYLE: CSSProperties = {
-  position: 'absolute',
-  bottom: 0,
-  left: 0,
-  right: 0,
-  padding: 16,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 10,
-  alignItems: 'center',
-};
-
-const HEADER_STYLE: CSSProperties = {
-  display: 'flex',
-  gap: 8,
-  fontSize: 22,
-  fontWeight: 700,
-  alignItems: 'baseline',
-};
-
-const CURRENT_MOVE_STYLE: CSSProperties = {
-  fontFamily: 'monospace',
-  fontSize: 26,
-};
-
-const COUNTER_STYLE: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 400,
-};
-
-const TIMELINE_STYLE: CSSProperties = {
-  display: 'flex',
-  width: 'min(640px, 90vw)',
-  height: 14,
-  borderRadius: 7,
-  overflow: 'hidden',
-  cursor: 'pointer',
-};
-
-const SCRUB_STYLE: CSSProperties = {
-  width: 'min(640px, 90vw)',
-};
-
-const BUTTON_ROW_STYLE: CSSProperties = {
-  display: 'flex',
-  gap: 10,
-};
-
-const BUTTON_STYLE: CSSProperties = {
-  fontSize: 18,
-  padding: '10px 16px',
-};
-
-const PLAY_PAUSE_BUTTON_STYLE: CSSProperties = {
-  ...BUTTON_STYLE,
-  fontSize: 22,
-};
-
 export function ControlPanel(p: ControlPanelProps) {
   const haveSolution = p.stages !== null && p.totalMoves > 0;
   const stageIndexAt = (mi: number) => {
@@ -96,132 +48,153 @@ export function ControlPanel(p: ControlPanelProps) {
     return idx;
   };
   const curStage = haveSolution ? stageIndexAt(p.moveIndex) : -1;
+  const atEnd = p.moveIndex >= p.totalMoves;
 
   return (
-    <div style={CONTAINER_STYLE}>
-      {haveSolution && (
-        <>
-          <div style={HEADER_STYLE}>
-            <span data-testid="stage-name">{p.stages![curStage].name}</span>
-            <span data-testid="current-move" style={CURRENT_MOVE_STYLE}>
-              {p.currentMove}
-            </span>
-            <span style={COUNTER_STYLE}>
-              {p.moveIndex}/{p.totalMoves}
-            </span>
-          </div>
-          <div style={TIMELINE_STYLE}>
-            {p.stages!.map((st, i) => (
-              <div
-                key={st.name}
-                data-testid={`stage-seg-${i}`}
-                title={st.name}
-                onClick={() => p.onSeek(p.stageStart[i])}
-                style={{
-                  flex: Math.max(st.moves.length, 1),
-                  background: STAGE_COLORS[i],
-                  opacity: i === curStage ? 1 : 0.45,
-                }}
-              />
-            ))}
-          </div>
-          <input
-            data-testid="scrub"
-            type="range"
-            min={0}
-            max={p.totalMoves}
-            value={p.moveIndex}
-            onChange={(ev) => p.onSeek(Number(ev.target.value))}
-            style={SCRUB_STYLE}
-            aria-label="Scrub timeline"
-          />
-        </>
-      )}
-      <div style={BUTTON_ROW_STYLE}>
-        <button data-testid="scramble" style={BUTTON_STYLE} onClick={p.onScramble}>
-          🔀 Scramble
-        </button>
-        <button
-          data-testid="solve"
-          style={BUTTON_STYLE}
-          onClick={p.onSolve}
-          disabled={p.phase !== 'SCRAMBLED'}
-        >
-          🧠 Solve
-        </button>
-        <button
-          data-testid="prev-stage"
-          style={BUTTON_STYLE}
-          aria-label="Jump to previous stage"
-          disabled={!haveSolution}
-          onClick={() =>
-            p.onSeek(
-              p.stageStart[
-                Math.max(curStage - (p.moveIndex === p.stageStart[curStage] ? 1 : 0), 0)
-              ],
-            )
-          }
-        >
-          ⏮
-        </button>
-        <button
-          data-testid="step-back"
-          style={BUTTON_STYLE}
-          aria-label="Step back"
-          disabled={!haveSolution || p.moveIndex === 0}
-          onClick={() => p.onSeek(p.moveIndex - 1)}
-        >
-          ◀
-        </button>
-        {p.phase === 'PLAYING' ? (
-          <button
-            data-testid="pause"
-            style={PLAY_PAUSE_BUTTON_STYLE}
-            aria-label="Pause"
-            onClick={p.onPause}
-          >
-            ⏸
-          </button>
-        ) : (
-          <button
-            data-testid="play"
-            style={PLAY_PAUSE_BUTTON_STYLE}
-            aria-label="Play"
-            disabled={!haveSolution || p.moveIndex >= p.totalMoves}
-            onClick={p.onPlay}
-          >
-            ▶
-          </button>
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center p-3 sm:p-4">
+      <div className="pointer-events-auto flex w-full max-w-2xl flex-col gap-3 rounded-2xl bg-base-200/80 p-3 shadow-2xl ring-1 ring-base-content/10 backdrop-blur-md sm:p-4">
+        {haveSolution && (
+          <>
+            <div className="flex flex-wrap items-baseline justify-center gap-x-3 gap-y-1">
+              <span data-testid="stage-name" className="font-display text-xl font-semibold">
+                {p.stages![curStage].name}
+              </span>
+              <span data-testid="current-move" className="badge badge-lg badge-primary font-mono text-base">
+                {p.currentMove || '—'}
+              </span>
+              <span className="text-sm tabular-nums opacity-70">
+                {p.moveIndex}/{p.totalMoves}
+              </span>
+            </div>
+            <div className="flex h-3 w-full cursor-pointer overflow-hidden rounded-full ring-1 ring-base-content/10">
+              {p.stages!.map((st, i) => (
+                <div
+                  key={st.name}
+                  data-testid={`stage-seg-${i}`}
+                  role="button"
+                  tabIndex={0}
+                  title={`Jump to ${st.name}`}
+                  aria-label={`Jump to ${st.name}`}
+                  onClick={() => p.onSeek(p.stageStart[i])}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      p.onSeek(p.stageStart[i]);
+                    }
+                  }}
+                  className="transition-opacity"
+                  style={{
+                    flex: Math.max(st.moves.length, 1),
+                    background: STAGE_COLORS[i],
+                    opacity: i === curStage ? 1 : 0.4,
+                  }}
+                />
+              ))}
+            </div>
+            <input
+              data-testid="scrub"
+              type="range"
+              min={0}
+              max={p.totalMoves}
+              value={p.moveIndex}
+              onChange={(ev) => p.onSeek(Number(ev.target.value))}
+              className="range range-primary range-xs w-full"
+              aria-label="Scrub timeline"
+            />
+          </>
         )}
-        <button
-          data-testid="step-fwd"
-          style={BUTTON_STYLE}
-          aria-label="Step forward"
-          disabled={!haveSolution || p.moveIndex >= p.totalMoves}
-          onClick={() => p.onSeek(p.moveIndex + 1)}
-        >
-          ▶︎
-        </button>
-        <button
-          data-testid="next-stage"
-          style={BUTTON_STYLE}
-          aria-label="Jump to next stage"
-          disabled={!haveSolution || curStage >= LAST_STAGE_INDEX}
-          onClick={() => p.onSeek(p.stageStart[Math.min(curStage + 1, LAST_STAGE_INDEX)])}
-        >
-          ⏭
-        </button>
-        <select
-          data-testid="speed"
-          value={p.speed}
-          onChange={(ev) => p.onSpeed(Number(ev.target.value))}
-          style={BUTTON_STYLE}
-          aria-label="Playback speed"
-        >
-          <option value={0.5}>0.5×</option>
-          <option value={1}>1×</option>
-          <option value={2}>2×</option>
-        </select>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <button data-testid="scramble" className="btn btn-primary gap-2" onClick={p.onScramble}>
+            <HugeiconsIcon icon={ScrambleIcon} size={20} strokeWidth={2} aria-hidden />
+            Scramble
+          </button>
+          <button
+            data-testid="solve"
+            className="btn btn-accent gap-2"
+            onClick={p.onSolve}
+            disabled={p.phase !== 'SCRAMBLED'}
+          >
+            <HugeiconsIcon icon={SolveIcon} size={20} strokeWidth={2} aria-hidden />
+            Solve
+          </button>
+
+          <div className="mx-1 h-8 w-px self-center bg-base-content/10" aria-hidden />
+
+          <button
+            data-testid="prev-stage"
+            className="btn btn-circle btn-ghost"
+            aria-label="Jump to previous stage"
+            disabled={!haveSolution}
+            onClick={() =>
+              p.onSeek(
+                p.stageStart[Math.max(curStage - (p.moveIndex === p.stageStart[curStage] ? 1 : 0), 0)],
+              )
+            }
+          >
+            <HugeiconsIcon icon={PrevStageIcon} size={22} strokeWidth={2} aria-hidden />
+          </button>
+          <button
+            data-testid="step-back"
+            className="btn btn-circle btn-ghost"
+            aria-label="Step back"
+            disabled={!haveSolution || p.moveIndex === 0}
+            onClick={() => p.onSeek(p.moveIndex - 1)}
+          >
+            <HugeiconsIcon icon={StepBackIcon} size={22} strokeWidth={2} aria-hidden />
+          </button>
+          {p.phase === 'PLAYING' ? (
+            <button
+              data-testid="pause"
+              className="btn btn-circle btn-primary btn-lg"
+              aria-label="Pause"
+              onClick={p.onPause}
+            >
+              <HugeiconsIcon icon={PauseIcon} size={26} strokeWidth={2} aria-hidden />
+            </button>
+          ) : (
+            <button
+              data-testid="play"
+              className="btn btn-circle btn-primary btn-lg"
+              aria-label="Play"
+              disabled={!haveSolution || atEnd}
+              onClick={p.onPlay}
+            >
+              <HugeiconsIcon icon={PlayIcon} size={26} strokeWidth={2} aria-hidden />
+            </button>
+          )}
+          <button
+            data-testid="step-fwd"
+            className="btn btn-circle btn-ghost"
+            aria-label="Step forward"
+            disabled={!haveSolution || atEnd}
+            onClick={() => p.onSeek(p.moveIndex + 1)}
+          >
+            <HugeiconsIcon icon={StepForwardIcon} size={22} strokeWidth={2} aria-hidden />
+          </button>
+          <button
+            data-testid="next-stage"
+            className="btn btn-circle btn-ghost"
+            aria-label="Jump to next stage"
+            disabled={!haveSolution || curStage >= LAST_STAGE_INDEX}
+            onClick={() => p.onSeek(p.stageStart[Math.min(curStage + 1, LAST_STAGE_INDEX)])}
+          >
+            <HugeiconsIcon icon={NextStageIcon} size={22} strokeWidth={2} aria-hidden />
+          </button>
+
+          <div className="mx-1 h-8 w-px self-center bg-base-content/10" aria-hidden />
+
+          <select
+            data-testid="speed"
+            value={p.speed}
+            onChange={(ev) => p.onSpeed(Number(ev.target.value))}
+            className="select select-sm select-bordered w-20"
+            aria-label="Playback speed"
+          >
+            <option value={0.5}>0.5×</option>
+            <option value={1}>1×</option>
+            <option value={2}>2×</option>
+          </select>
+        </div>
       </div>
     </div>
   );

@@ -1,12 +1,4 @@
-import {
-  lazy,
-  Suspense,
-  useCallback,
-  useEffect,
-  useMemo,
-  useReducer,
-  type CSSProperties,
-} from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useReducer } from 'react';
 import { solved, isSolved, type CubeState } from './core/cube-model/state';
 import { apply } from './core/cube-model/apply';
 import type { Move } from './core/cube-model/moves';
@@ -138,32 +130,6 @@ const INITIAL_STATE: AppState = {
   speed: DEFAULT_SPEED,
 };
 
-const APP_STYLE: CSSProperties = {
-  width: '100vw',
-  height: '100vh',
-  position: 'relative',
-};
-const FALLBACK_STYLE: CSSProperties = {
-  display: 'grid',
-  placeItems: 'center',
-  height: '100%',
-};
-const SOLVE_ERROR_STYLE: CSSProperties = {
-  position: 'absolute',
-  top: 16,
-  left: 0,
-  right: 0,
-  textAlign: 'center',
-  color: '#ff6b6b',
-  fontSize: 14,
-};
-const SOLVE_ERROR_INNER_STYLE: CSSProperties = {
-  display: 'inline-block',
-  background: 'rgba(0,0,0,0.6)',
-  padding: '6px 12px',
-  borderRadius: 4,
-};
-
 export default function App() {
   const [s, dispatch] = useReducer(reducer, INITIAL_STATE);
   const facelets = useMemo(() => toFacelets(s.cube), [s.cube]);
@@ -237,17 +203,31 @@ export default function App() {
       data-testid="app"
       data-phase={s.phase}
       data-solved={isSolved(s.cube)}
-      style={APP_STYLE}
+      className="relative h-screen w-screen overflow-hidden"
     >
+      <header className="pointer-events-none absolute left-0 top-0 z-10 p-4 sm:p-5">
+        <h1 className="font-display text-lg font-semibold leading-tight sm:text-xl">
+          Rubik&apos;s Cube
+        </h1>
+        <p className="max-w-xs text-xs opacity-60 sm:text-sm">
+          Scramble, then Solve to watch the beginner method step by step.
+        </p>
+      </header>
       <ErrorBoundary>
-        <Suspense fallback={<div style={FALLBACK_STYLE}>Loading cube…</div>}>
+        <Suspense
+          fallback={
+            <div className="grid h-full place-items-center">
+              <span className="loading loading-spinner loading-lg text-primary" />
+            </div>
+          }
+        >
           <CubeView facelets={facelets} turn={turn} />
         </Suspense>
       </ErrorBoundary>
       {s.solveError && (
-        <div style={SOLVE_ERROR_STYLE}>
-          <div data-testid="solve-error" role="alert" style={SOLVE_ERROR_INNER_STYLE}>
-            {s.solveError}
+        <div className="pointer-events-none absolute inset-x-0 top-16 z-20 flex justify-center px-4">
+          <div data-testid="solve-error" role="alert" className="alert alert-error w-auto max-w-md shadow-lg">
+            <span>{s.solveError}</span>
           </div>
         </div>
       )}

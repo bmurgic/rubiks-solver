@@ -1,23 +1,34 @@
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
-import { memo, useMemo, useRef, type CSSProperties, type ReactNode } from 'react';
+import { ContactShadows, OrbitControls } from '@react-three/drei';
+import { memo, useMemo, useRef, type ReactNode } from 'react';
 import type { Group } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import type { FaceName } from '../core/facelets/facelets';
 import type { Face, Move } from '../core/cube-model/moves';
 import { FACE_COLORS, PLASTIC } from './colors';
 import { faceletIndexAt, type Vec3 } from './facelet-grid';
+import { HugeiconsIcon, ResetViewIcon } from './icons';
 
 const GRID: readonly number[] = [-1, 0, 1];
 const CUBELET_SPACING = 1.05;
 const CUBELET_SIZE = 1;
 const CAMERA_POSITION: Vec3 = [4.5, 4.5, 4.5];
 const CAMERA_FOV = 40;
-const AMBIENT_INTENSITY = 1.2;
-const DIRECTIONAL_INTENSITY = 1.5;
-const DIRECTIONAL_POSITION: Vec3 = [5, 10, 7];
+const AMBIENT_INTENSITY = 0.7;
+const KEY_INTENSITY = 1.4;
+const KEY_POSITION: Vec3 = [5, 10, 7];
+const FILL_INTENSITY = 0.5;
+const FILL_POSITION: Vec3 = [-6, 2, -4];
+const HEMI_INTENSITY = 0.5;
 const MIN_DISTANCE = 5;
 const MAX_DISTANCE = 14;
+
+// Material sheen for the colored facelets — clean plastic, no metal.
+const FACELET_ROUGHNESS = 0.35;
+const FACELET_METALNESS = 0;
+
+// Soft ground shadow placed just below the lowest cubelet layer.
+const SHADOW_Y = -1.7;
 
 const QUARTER_TURN_RAD = Math.PI / 2;
 const PRIME_TURNS = 3 as const;
@@ -85,7 +96,13 @@ const Cubelet = memo(function Cubelet({ pos, facelets }: CubeletProps) {
     <mesh position={[pos[0] * CUBELET_SPACING, pos[1] * CUBELET_SPACING, pos[2] * CUBELET_SPACING]}>
       <boxGeometry args={[CUBELET_SIZE, CUBELET_SIZE, CUBELET_SIZE]} />
       {colors.map((c, i) => (
-        <meshStandardMaterial key={i} attach={`material-${i}`} color={c} />
+        <meshStandardMaterial
+          key={i}
+          attach={`material-${i}`}
+          color={c}
+          roughness={FACELET_ROUGHNESS}
+          metalness={FACELET_METALNESS}
+        />
       ))}
     </mesh>
   );
@@ -140,29 +157,18 @@ interface CubeViewProps {
   turn: Turn | null;
 }
 
-const WRAPPER_STYLE: CSSProperties = {
-  position: 'absolute',
-  inset: 0,
-};
-
-const RESET_BUTTON_STYLE: CSSProperties = {
-  position: 'absolute',
-  top: 12,
-  right: 12,
-  fontSize: 16,
-  padding: '8px 12px',
-};
-
 export function CubeView({ facelets, turn }: CubeViewProps) {
   const turning = turn ? POSITIONS.filter(FACE_SELECTOR[turn.move.face]) : [];
   const still = turn ? POSITIONS.filter((p) => !FACE_SELECTOR[turn.move.face](p)) : POSITIONS;
   const controls = useRef<OrbitControlsImpl>(null);
   const resetView = () => controls.current?.reset();
   return (
-    <div style={WRAPPER_STYLE} onDoubleClick={resetView}>
+    <div className="cube-stage absolute inset-0" onDoubleClick={resetView}>
       <Canvas camera={{ position: CAMERA_POSITION, fov: CAMERA_FOV }}>
         <ambientLight intensity={AMBIENT_INTENSITY} />
-        <directionalLight position={DIRECTIONAL_POSITION} intensity={DIRECTIONAL_INTENSITY} />
+        <hemisphereLight intensity={HEMI_INTENSITY} color="#cdd6ff" groundColor="#1e1b4b" />
+        <directionalLight position={KEY_POSITION} intensity={KEY_INTENSITY} />
+        <directionalLight position={FILL_POSITION} intensity={FILL_INTENSITY} />
         {still.map((p) => (
           <Cubelet key={p.join(',')} pos={p} facelets={facelets} />
         ))}
@@ -176,6 +182,15 @@ export function CubeView({ facelets, turn }: CubeViewProps) {
             ))}
           </TurningGroup>
         )}
+        <ContactShadows
+          position={[0, SHADOW_Y, 0]}
+          opacity={0.45}
+          scale={12}
+          blur={2.5}
+          far={5}
+          resolution={512}
+          color="#000000"
+        />
         <OrbitControls
           ref={controls}
           enablePan={false}
@@ -188,10 +203,10 @@ export function CubeView({ facelets, turn }: CubeViewProps) {
       <button
         data-testid="reset-view"
         aria-label="Reset view"
-        style={RESET_BUTTON_STYLE}
+        className="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 bg-base-200/70 backdrop-blur-md"
         onClick={resetView}
       >
-        🎯 Reset view
+        <HugeiconsIcon icon={ResetViewIcon} size={20} strokeWidth={2} aria-hidden />
       </button>
     </div>
   );
