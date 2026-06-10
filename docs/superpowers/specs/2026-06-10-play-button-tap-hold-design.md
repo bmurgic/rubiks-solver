@@ -46,7 +46,7 @@ the pause button is shown) and pauses mid-move per existing pause semantics.
 Two small units:
 
 ```
-ControlPanel: usePressHold(onTap, onHold, 600) ──> play button pointer events
+ControlPanel: <PlayPauseButton> ──> one persistent button, tap/hold detection
 App reducer:  PLAY { mode: 'continuous' | 'single' } ──> playMode in state
               PLAY_TURN_DONE + playMode 'single' ──> PAUSED
 ```
@@ -66,22 +66,36 @@ App reducer:  PLAY { mode: 'continuous' | 'single' } ──> playMode in state
   is already visible. The move starts immediately; the post-move pause
   replaces the dwell.
 
-### Press-hold hook (`src/view/use-press-hold.ts`, new)
+### `PlayPauseButton` (`src/view/PlayPauseButton.tsx`, new)
 
-`usePressHold(onTap, onHold, thresholdMs)` returns props to spread on the
-button:
+One persistent `<button>` element that is Play while paused (testid `play`)
+and Pause while playing (testid `pause`) — attributes, label, and icon swap;
+the element does not. Implementation discoveries that forced this shape:
 
-- `onPointerDown`: start a `setTimeout(thresholdMs)`; capture the pointer.
-- Timer fires → call `onHold` (press consumed; subsequent release ignored).
-- `onPointerUp` before the timer → clear timer, call `onTap`.
-- `onPointerCancel` / `onPointerLeave` before the timer → clear timer, no call.
-- `onClick` with `event.detail === 0` (keyboard focus activation — Enter/Space
-  on the focused button fires a detail-0 click) → `onTap`. Pointer-originated
-  clicks (`detail >= 1`) are ignored here because the tap already fired on
-  pointerup — no double-fire.
-- Cleanup on unmount clears any pending timer.
+- **Ghost-click problem.** Firing play on pointerup re-renders before the
+  browser dispatches the trailing trusted `click`. With separate play/pause
+  elements, the play button unmounts and Chromium retargets that click to the
+  swapped-in pause button → instant PAUSE, net no-op (observed via reducer
+  action log: `PLAY` immediately followed by `PAUSE`). With one persistent
+  element the click lands on the same button, where a `consumed` flag set by
+  the already-handled press swallows it. The flag is also dropped on the next
+  pointerdown so it can never eat a later legitimate click.
+- **Native listeners.** Real (trusted) pointer input does not reach React's
+  delegated `onPointerDown`/`onPointerUp` props in this app (verified:
+  native listeners on the same element observe the events; React handlers
+  never fire). Pointer listeners are attached natively via a ref callback
+  whose cleanup (React 19) removes them and any pending timer.
 
-The play button stops using `onClick` and spreads the hook's handlers.
+Press behavior, play mode only (a pointerdown while playing does nothing —
+clicks then route to `onPause`):
+
+- pointerdown: start a `setTimeout(thresholdMs)`.
+- Timer fires → mark consumed, call `onHold` (release is then a no-op).
+- pointerup before the timer → clear timer, mark consumed, call `onTap`.
+- pointercancel / pointerleave before the timer → clear timer, no call.
+- `click` with `detail === 0` (keyboard focus activation — Enter/Space on the
+  focused button) → `onTap`; while playing → `onPause`; consumed → swallowed.
+
 `onTap` dispatches `PLAY { mode: 'single' }`; `onHold` dispatches
 `PLAY { mode: 'continuous' }`.
 

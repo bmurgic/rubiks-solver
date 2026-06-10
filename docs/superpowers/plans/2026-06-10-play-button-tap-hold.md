@@ -12,6 +12,22 @@
 
 **Branch:** `feat/teach-the-solve` (already checked out).
 
+> **Post-execution deviation note (2026-06-10):** Steps 4-5 as written (a
+> generic `usePressHold` hook spread on the conditional play button) failed
+> against real pointer input for two reasons discovered during execution:
+> (1) real/trusted pointer events never reach React's delegated
+> `onPointerDown`/`onPointerUp` handlers in this app — native listeners are
+> required; (2) firing play on pointerup re-renders before the trailing
+> trusted `click` dispatches, and Chromium retargets that click to the
+> swapped-in pause button, instantly pausing again (net no-op). The shipped
+> implementation is `src/view/PlayPauseButton.tsx`: one persistent button
+> element that swaps role (testids `play`/`pause` preserved verbatim), native
+> pointer listeners via ref callback, and a consumed-press flag that swallows
+> the trailing ghost click. Reducer changes (Step 3) and e2e changes
+> (Steps 1, 7) shipped as planned. e2e totals: 7 existing + 1 new = 8 (the
+> "9" below miscounted). See the spec's `PlayPauseButton` section for the
+> authoritative mechanics.
+
 **Hard constraints:**
 - All existing e2e `data-testid`s preserved verbatim (`play`, `pause`, etc.).
 - `src/core/**` untouched.
