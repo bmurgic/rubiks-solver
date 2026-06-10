@@ -11,10 +11,32 @@ test('scramble → solve → play to completion → cube is solved', async ({ pa
 
   await page.getByTestId('solve').click();
   await page.getByTestId('speed').selectOption('2');
+  await page.getByTestId('auto-continue').check(); // play through stage pauses
   await page.getByTestId('play').click();
   await expect(app).toHaveAttribute('data-phase', 'PLAYING');
   await expect(app).toHaveAttribute('data-phase', 'SOLVED', { timeout: 120_000 });
   await expect(app).toHaveAttribute('data-solved', 'true');
+});
+
+test('playback pauses at each stage boundary unless auto-continue is on', async ({ page }) => {
+  await page.goto('/');
+  const app = page.getByTestId('app');
+  await page.getByTestId('scramble').click();
+  await expect(app).toHaveAttribute('data-phase', 'SCRAMBLED', { timeout: 30_000 });
+  await page.getByTestId('solve').click();
+  await page.getByTestId('speed').selectOption('2');
+
+  // Auto is off by default: one Play click stops at the first stage boundary,
+  // not at the end of the solve.
+  await page.getByTestId('play').click();
+  await expect(app).toHaveAttribute('data-phase', 'PLAYING');
+  await expect(app).toHaveAttribute('data-phase', 'PAUSED', { timeout: 60_000 });
+  await expect(app).toHaveAttribute('data-solved', 'false');
+
+  // Play resumes from the pause and stops at the next boundary.
+  await page.getByTestId('play').click();
+  await expect(app).toHaveAttribute('data-phase', 'PLAYING');
+  await expect(app).toHaveAttribute('data-phase', 'PAUSED', { timeout: 60_000 });
 });
 
 test('scramble is always available and hard-resets mid-playback', async ({ page }) => {

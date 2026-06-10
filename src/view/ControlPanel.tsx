@@ -11,6 +11,7 @@ import {
   PauseIcon,
   StepForwardIcon,
   NextStageIcon,
+  AutoContinueIcon,
 } from './icons';
 
 const LAST_STAGE_INDEX = STAGE_NAMES.length - 1;
@@ -23,12 +24,14 @@ export interface ControlPanelProps {
   totalMoves: number;
   speed: number;
   currentMove: string; // formatted notation of the move about to play, '' at end
+  autoContinue: boolean; // play through stage boundaries instead of pausing
   onScramble: () => void;
   onSolve: () => void;
   onPlay: () => void;
   onPause: () => void;
   onSeek: (index: number) => void;
   onSpeed: (speed: number) => void;
+  onToggleAuto: () => void;
 }
 
 export function ControlPanel(p: ControlPanelProps) {
@@ -180,6 +183,19 @@ export function ControlPanel(p: ControlPanelProps) {
             <option value={1}>1×</option>
             <option value={2}>2×</option>
           </select>
+
+          <label className="label min-h-11 cursor-pointer gap-1.5">
+            <input
+              data-testid="auto-continue"
+              type="checkbox"
+              checked={p.autoContinue}
+              onChange={p.onToggleAuto}
+              className="checkbox checkbox-primary checkbox-sm"
+              aria-label="Auto-continue past stage pauses"
+            />
+            <HugeiconsIcon icon={AutoContinueIcon} size={18} strokeWidth={2} aria-hidden />
+            <span className="text-sm opacity-80">Auto</span>
+          </label>
         </div>
       </div>
     </div>

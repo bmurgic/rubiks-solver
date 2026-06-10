@@ -39,6 +39,7 @@ interface AppState {
   moveIndex: number; // next solution move to play
   solveError: string | null;
   speed: number;
+  autoContinue: boolean; // play through stage boundaries instead of pausing
 }
 
 type Action =
@@ -50,7 +51,8 @@ type Action =
   | { type: 'PAUSE' }
   | { type: 'PLAY_TURN_DONE' }
   | { type: 'SEEK'; index: number }
-  | { type: 'SET_SPEED'; speed: number };
+  | { type: 'SET_SPEED'; speed: number }
+  | { type: 'TOGGLE_AUTO' };
 
 function buildSolution(cube: CubeState): Solution {
   const stages = solve(cube);
@@ -107,6 +109,10 @@ function reducer(s: AppState, a: Action): AppState {
       if (next >= s.solution.moves.length) {
         return { ...s, cube, moveIndex: next, phase: 'SOLVED' };
       }
+      // Pause at each stage boundary so the lesson can be read; Auto plays through.
+      if (!s.autoContinue && s.solution.stageStart.includes(next)) {
+        return { ...s, cube, moveIndex: next, phase: 'PAUSED' };
+      }
       return { ...s, cube, moveIndex: next };
     }
     case 'SEEK': {
@@ -118,6 +124,8 @@ function reducer(s: AppState, a: Action): AppState {
     }
     case 'SET_SPEED':
       return { ...s, speed: a.speed };
+    case 'TOGGLE_AUTO':
+      return { ...s, autoContinue: !s.autoContinue };
   }
 }
 
@@ -130,6 +138,7 @@ const INITIAL_STATE: AppState = {
   moveIndex: 0,
   solveError: null,
   speed: DEFAULT_SPEED,
+  autoContinue: false,
 };
 
 export default function App() {
@@ -152,6 +161,7 @@ export default function App() {
   const onPause = useCallback(() => dispatch({ type: 'PAUSE' }), []);
   const onSeek = useCallback((index: number) => dispatch({ type: 'SEEK', index }), []);
   const onSpeed = useCallback((speed: number) => dispatch({ type: 'SET_SPEED', speed }), []);
+  const onToggleAuto = useCallback(() => dispatch({ type: 'TOGGLE_AUTO' }), []);
   const onScrambleTurnDone = useCallback(() => dispatch({ type: 'SCRAMBLE_TURN_DONE' }), []);
   const onPlayTurnDone = useCallback(() => dispatch({ type: 'PLAY_TURN_DONE' }), []);
 
@@ -250,12 +260,14 @@ export default function App() {
           totalMoves={s.solution?.moves.length ?? 0}
           speed={s.speed}
           currentMove={currentMove}
+          autoContinue={s.autoContinue}
           onScramble={onScramble}
           onSolve={onSolve}
           onPlay={onPlay}
           onPause={onPause}
           onSeek={onSeek}
           onSpeed={onSpeed}
+          onToggleAuto={onToggleAuto}
         />
       </div>
     </div>

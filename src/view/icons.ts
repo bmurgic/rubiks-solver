@@ -13,4 +13,5 @@ export {
   Target01Icon as ResetViewIcon,
   ArrowDown01Icon as ChevronDownIcon,
   ArrowUp01Icon as ChevronUpIcon,
+  FastForwardIcon as AutoContinueIcon,
 } from '@hugeicons/core-free-icons';
