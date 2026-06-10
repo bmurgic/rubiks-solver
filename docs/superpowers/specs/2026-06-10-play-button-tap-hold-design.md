@@ -61,8 +61,10 @@ App reducer:  PLAY { mode: 'continuous' | 'single' } ──> playMode in state
 - All other actions (PAUSE, SEEK, SCRAMBLE, SPEED, TOGGLE_AUTO) unchanged.
   Space-key dispatch and the pause button dispatch plain `PAUSE` as today;
   Space's play side dispatches `PLAY` with `mode: 'continuous'`.
-- Dwell still runs before the move when the tap lands on an action-group
-  boundary — the caption explains the move that is about to play.
+- Single mode never dwells: dwelling is a between-moves mechanism during
+  continuous playback, and a tap always starts from PAUSED where the caption
+  is already visible. The move starts immediately; the post-move pause
+  replaces the dwell.
 
 ### Press-hold hook (`src/view/use-press-hold.ts`, new)
 
@@ -73,8 +75,10 @@ button:
 - Timer fires → call `onHold` (press consumed; subsequent release ignored).
 - `onPointerUp` before the timer → clear timer, call `onTap`.
 - `onPointerCancel` / `onPointerLeave` before the timer → clear timer, no call.
-- `onKeyDown` Enter/Space (button focus activation) → `onTap` (suppress the
-  synthetic click so a tap never double-fires).
+- `onClick` with `event.detail === 0` (keyboard focus activation — Enter/Space
+  on the focused button fires a detail-0 click) → `onTap`. Pointer-originated
+  clicks (`detail >= 1`) are ignored here because the tap already fired on
+  pointerup — no double-fire.
 - Cleanup on unmount clears any pending timer.
 
 The play button stops using `onClick` and spreads the hook's handlers.
@@ -97,10 +101,14 @@ feedback. A progress ring was considered and rejected (YAGNI).
 ## Testing
 
 - **e2e (`e2e/journey.spec.ts`):** the 3 existing tests that click `play`
-  expecting continuous playback switch to `click({ delay: 700 })` — Playwright
-  holds the mouse down for the delay, crossing the 600 ms threshold. Assertions
-  unchanged. One new test: tap play → exactly one move advances
-  (`current-move`/counter changes by one) → phase returns to PAUSED.
+  expecting continuous playback switch to a `holdPlay(page)` helper (hover the
+  play button, `mouse.down()`, wait 700 ms, `mouse.up()`), crossing the 600 ms
+  threshold. Raw mouse events are used instead of `click({ delay })` because
+  the play button unmounts mid-hold (it swaps to the pause button at the
+  threshold), which a locator click may treat as element detachment.
+  Assertions unchanged. One new test: tap play → scrub value advances by
+  exactly one → phase returns to PAUSED (asserted in that order, since
+  PAUSED is also the pre-tap state).
 - **Unit:** none added — the reducer lives inside `App.tsx` (not separately
   unit-tested today) and the hook is timer + pointer glue; behavior is covered
   end-to-end. If the reducer is ever extracted, single-mode transitions should
