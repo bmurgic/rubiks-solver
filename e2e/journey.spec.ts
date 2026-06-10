@@ -1,4 +1,12 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+/** Press-and-hold the play button past the 600 ms threshold → continuous playback. */
+async function holdPlay(page: Page): Promise<void> {
+  await page.getByTestId('play').hover();
+  await page.mouse.down();
+  await page.waitForTimeout(700);
+  await page.mouse.up();
+}
 
 test('scramble → solve → play to completion → cube is solved', async ({ page }) => {
   await page.goto('/');
@@ -12,7 +20,7 @@ test('scramble → solve → play to completion → cube is solved', async ({ pa
   await page.getByTestId('solve').click();
   await page.getByTestId('speed').selectOption('2');
   await page.getByTestId('auto-continue').check(); // play through stage pauses
-  await page.getByTestId('play').click();
+  await holdPlay(page);
   await expect(app).toHaveAttribute('data-phase', 'PLAYING');
   await expect(app).toHaveAttribute('data-phase', 'SOLVED', { timeout: 120_000 });
   await expect(app).toHaveAttribute('data-solved', 'true');
@@ -26,15 +34,15 @@ test('playback pauses at each stage boundary unless auto-continue is on', async 
   await page.getByTestId('solve').click();
   await page.getByTestId('speed').selectOption('2');
 
-  // Auto is off by default: one Play click stops at the first stage boundary,
+  // Auto is off by default: one held Play stops at the first stage boundary,
   // not at the end of the solve.
-  await page.getByTestId('play').click();
+  await holdPlay(page);
   await expect(app).toHaveAttribute('data-phase', 'PLAYING');
   await expect(app).toHaveAttribute('data-phase', 'PAUSED', { timeout: 60_000 });
   await expect(app).toHaveAttribute('data-solved', 'false');
 
   // Play resumes from the pause and stops at the next boundary.
-  await page.getByTestId('play').click();
+  await holdPlay(page);
   await expect(app).toHaveAttribute('data-phase', 'PLAYING');
   await expect(app).toHaveAttribute('data-phase', 'PAUSED', { timeout: 60_000 });
 });
@@ -44,7 +52,7 @@ test('scramble is always available and hard-resets mid-playback', async ({ page 
   await page.getByTestId('scramble').click();
   await expect(page.getByTestId('app')).toHaveAttribute('data-phase', 'SCRAMBLED', { timeout: 30_000 });
   await page.getByTestId('solve').click();
-  await page.getByTestId('play').click();
+  await holdPlay(page);
   await expect(page.getByTestId('app')).toHaveAttribute('data-phase', 'PLAYING');
   await page.getByTestId('scramble').click(); // mid-playback reset
   await expect(page.getByTestId('app')).toHaveAttribute('data-phase', /SCRAMBLING|SCRAMBLED/, { timeout: 30_000 });
@@ -106,4 +114,25 @@ test('app exposes the upcoming move face as a layer cue while paused', async ({ 
   await page.getByTestId('solve').click();
   await page.getByTestId('stage-seg-0').click(); // paused at the start, first move pending
   await expect(app).toHaveAttribute('data-cue-face', /^[UDRLFB]$/);
+});
+
+test('tapping play advances exactly one move then pauses', async ({ page }) => {
+  await page.goto('/');
+  const app = page.getByTestId('app');
+  await page.getByTestId('scramble').click();
+  await expect(app).toHaveAttribute('data-phase', 'SCRAMBLED', { timeout: 30_000 });
+  await page.getByTestId('solve').click();
+  await expect(page.getByTestId('scrub')).toHaveValue('0');
+
+  // Quick tap: press is well under the 600 ms hold threshold.
+  await page.getByTestId('play').click();
+  // Assert the move committed BEFORE asserting PAUSED — PAUSED is also the
+  // pre-tap state, so checking it first would race the turn animation.
+  await expect(page.getByTestId('scrub')).toHaveValue('1', { timeout: 10_000 });
+  await expect(app).toHaveAttribute('data-phase', 'PAUSED');
+
+  // A second tap advances exactly one more move.
+  await page.getByTestId('play').click();
+  await expect(page.getByTestId('scrub')).toHaveValue('2', { timeout: 10_000 });
+  await expect(app).toHaveAttribute('data-phase', 'PAUSED');
 });

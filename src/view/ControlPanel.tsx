@@ -1,14 +1,13 @@
 import { STAGE_NAMES, type Stage } from '../core/solver/types';
 import { STAGE_COLORS } from './stage-colors';
 import { stageIndexAt } from './stage-index';
+import { PlayPauseButton } from './PlayPauseButton';
 import {
   HugeiconsIcon,
   ScrambleIcon,
   SolveIcon,
   PrevStageIcon,
   StepBackIcon,
-  PlayIcon,
-  PauseIcon,
   StepForwardIcon,
   NextStageIcon,
   AutoContinueIcon,
@@ -28,6 +27,7 @@ export interface ControlPanelProps {
   onScramble: () => void;
   onSolve: () => void;
   onPlay: () => void;
+  onPlayOne: () => void;
   onPause: () => void;
   onSeek: (index: number) => void;
   onSpeed: (speed: number) => void;
@@ -131,26 +131,13 @@ export function ControlPanel(p: ControlPanelProps) {
           >
             <HugeiconsIcon icon={StepBackIcon} size={22} strokeWidth={2} aria-hidden />
           </button>
-          {p.phase === 'PLAYING' ? (
-            <button
-              data-testid="pause"
-              className="btn btn-circle btn-primary btn-lg"
-              aria-label="Pause"
-              onClick={p.onPause}
-            >
-              <HugeiconsIcon icon={PauseIcon} size={26} strokeWidth={2} aria-hidden />
-            </button>
-          ) : (
-            <button
-              data-testid="play"
-              className="btn btn-circle btn-primary btn-lg"
-              aria-label="Play"
-              disabled={!haveSolution || atEnd}
-              onClick={p.onPlay}
-            >
-              <HugeiconsIcon icon={PlayIcon} size={26} strokeWidth={2} aria-hidden />
-            </button>
-          )}
+          <PlayPauseButton
+            isPlaying={p.phase === 'PLAYING'}
+            disabled={!haveSolution || atEnd}
+            onPlay={p.onPlay}
+            onPlayOne={p.onPlayOne}
+            onPause={p.onPause}
+          />
           <button
             data-testid="step-fwd"
             className="btn btn-circle btn-ghost"

@@ -25,6 +25,8 @@ const DEFAULT_SPEED = 1;
 
 type Phase = 'SOLVED' | 'SCRAMBLING' | 'SCRAMBLED' | 'PLAYING' | 'PAUSED';
 
+type PlayMode = 'continuous' | 'single';
+
 interface Solution {
   readonly stages: readonly Stage[];
   readonly moves: readonly Move[]; // flattened
@@ -45,6 +47,7 @@ interface AppState {
   solveError: string | null;
   speed: number;
   autoContinue: boolean; // play through stage boundaries instead of pausing
+  playMode: PlayMode; // single = pause again after the next completed move
   isDwelling: boolean; // brief between-actions hold while PLAYING
 }
 
@@ -53,7 +56,7 @@ type Action =
   | { type: 'SCRAMBLE_TURN_DONE' }
   | { type: 'SOLVE'; solution: Solution }
   | { type: 'SOLVE_FAILED'; message: string }
-  | { type: 'PLAY' }
+  | { type: 'PLAY'; mode: PlayMode }
   | { type: 'PAUSE' }
   | { type: 'PLAY_TURN_DONE' }
   | { type: 'SEEK'; index: number }
@@ -122,7 +125,7 @@ function reducer(s: AppState, a: Action): AppState {
       return { ...s, solveError: a.message };
     case 'PLAY':
       return s.solution && s.moveIndex < s.solution.moves.length
-        ? { ...s, phase: 'PLAYING' }
+        ? { ...s, phase: 'PLAYING', playMode: a.mode }
         : s;
     case 'PAUSE':
       return s.phase === 'PLAYING' ? { ...s, phase: 'PAUSED', isDwelling: false } : s;
@@ -132,6 +135,10 @@ function reducer(s: AppState, a: Action): AppState {
       const cube = s.solution.snapshots[next];
       if (next >= s.solution.moves.length) {
         return { ...s, cube, moveIndex: next, phase: 'SOLVED' };
+      }
+      // Single-step play: stop after the one move completes.
+      if (s.playMode === 'single') {
+        return { ...s, cube, moveIndex: next, phase: 'PAUSED', isDwelling: false };
       }
       // Pause at each stage boundary so the lesson can be read; Auto plays through.
       if (!s.autoContinue && s.solution.stageStart.includes(next)) {
@@ -169,6 +176,7 @@ const INITIAL_STATE: AppState = {
   solveError: null,
   speed: DEFAULT_SPEED,
   autoContinue: false,
+  playMode: 'continuous',
   isDwelling: false,
 };
 
@@ -188,7 +196,8 @@ export default function App() {
       dispatch({ type: 'SOLVE_FAILED', message: getErrorMessage(err) });
     }
   }, [s.cube]);
-  const onPlay = useCallback(() => dispatch({ type: 'PLAY' }), []);
+  const onPlay = useCallback(() => dispatch({ type: 'PLAY', mode: 'continuous' }), []);
+  const onPlayOne = useCallback(() => dispatch({ type: 'PLAY', mode: 'single' }), []);
   const onPause = useCallback(() => dispatch({ type: 'PAUSE' }), []);
   const onSeek = useCallback((index: number) => dispatch({ type: 'SEEK', index }), []);
   const onSpeed = useCallback((speed: number) => dispatch({ type: 'SET_SPEED', speed }), []);
@@ -206,7 +215,8 @@ export default function App() {
       }
       if (ev.code === 'Space') {
         ev.preventDefault();
-        dispatch({ type: s.phase === 'PLAYING' ? 'PAUSE' : 'PLAY' });
+        if (s.phase === 'PLAYING') dispatch({ type: 'PAUSE' });
+        else dispatch({ type: 'PLAY', mode: 'continuous' });
       }
       if (ev.code === 'ArrowRight') {
         ev.preventDefault();
@@ -331,6 +341,7 @@ export default function App() {
           onScramble={onScramble}
           onSolve={onSolve}
           onPlay={onPlay}
+          onPlayOne={onPlayOne}
           onPause={onPause}
           onSeek={onSeek}
           onSpeed={onSpeed}
