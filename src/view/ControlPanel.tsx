@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import type { Stage } from '../core/solver/types';
+import { STAGE_NAMES, type Stage } from '../core/solver/types';
 
 const STAGE_COLORS: readonly string[] = [
   '#f6e58d',
@@ -10,7 +10,7 @@ const STAGE_COLORS: readonly string[] = [
   '#e056fd',
 ];
 
-const LAST_STAGE_INDEX = 5;
+const LAST_STAGE_INDEX = STAGE_NAMES.length - 1;
 
 export interface ControlPanelProps {
   phase: string;

@@ -7,12 +7,16 @@ import { solveDaisy, daisyDone } from './daisy';
 
 test('daisy invariant holds after stage, across 300 random scrambles', () => {
   for (let seed = 0; seed < 300; seed++) {
-    const start = applyAll(solved(), scramble(mulberry32(seed)));
-    const { stage, state } = solveDaisy(start);
-    expect(daisyDone(state)).toBe(true);
-    // returned moves reproduce the returned state
-    expect(applyAll(start, stage.moves)).toEqual(state);
-    expect(stage.name).toBe('Daisy');
+    try {
+      const start = applyAll(solved(), scramble(mulberry32(seed)));
+      const { stage, state } = solveDaisy(start);
+      expect(daisyDone(state)).toBe(true);
+      // returned moves reproduce the returned state
+      expect(applyAll(start, stage.moves)).toEqual(state);
+      expect(stage.name).toBe('Daisy');
+    } catch (err) {
+      throw new Error(`seed=${seed}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+    }
   }
 });
 

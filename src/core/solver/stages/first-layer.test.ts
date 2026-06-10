@@ -9,11 +9,15 @@ import { solveFirstLayer, firstLayerDone } from './first-layer';
 
 test('first layer + cross intact after stage, across 300 random scrambles', () => {
   for (let seed = 0; seed < 300; seed++) {
-    const start = applyAll(solved(), scramble(mulberry32(seed)));
-    const s1 = solveCross(solveDaisy(start).state).state;
-    const { stage, state } = solveFirstLayer(s1);
-    expect(firstLayerDone(state)).toBe(true);
-    expect(crossDone(state)).toBe(true); // prior stage intact
-    expect(applyAll(s1, stage.moves)).toEqual(state);
+    try {
+      const start = applyAll(solved(), scramble(mulberry32(seed)));
+      const s1 = solveCross(solveDaisy(start).state).state;
+      const { stage, state } = solveFirstLayer(s1);
+      expect(firstLayerDone(state)).toBe(true);
+      expect(crossDone(state)).toBe(true); // prior stage intact
+      expect(applyAll(s1, stage.moves)).toEqual(state);
+    } catch (err) {
+      throw new Error(`seed=${seed}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+    }
   }
 });

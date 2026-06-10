@@ -11,7 +11,7 @@ export class Emitter {
   readonly moves: Move[] = [];
   /** Inclusive — throws StageCapError on the (cap+1)th emitted move. */
   private readonly cap: number;
-  private readonly stage: StageName;
+  readonly stage: StageName;
 
   constructor(state: CubeState, cap: number, stage: StageName) {
     this.state = state;
@@ -33,14 +33,13 @@ export class Emitter {
 
 /**
  * Rotate the U face up to 3 times searching for a state matching `pred`.
- * Throws StageCapError tagged 'Daisy' if no U setup satisfies the predicate
- * (the predicate failure message carries the real meaning; caller stage
- * label refinement is rarely needed).
+ * Throws StageCapError tagged with the emitter's own stage if no U setup
+ * satisfies the predicate.
  */
 export function rotateUUntil(e: Emitter, pred: (s: CubeState) => boolean): void {
   for (let i = 0; i < ROTATE_U_MAX_TURNS; i++) {
     if (pred(e.state)) return;
     e.do('U');
   }
-  throw new StageCapError('Daisy', 'U-setup predicate never satisfied');
+  throw new StageCapError(e.stage, 'U-setup predicate never satisfied');
 }

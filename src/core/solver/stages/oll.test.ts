@@ -11,11 +11,15 @@ import { solveOll, ollDone } from './oll';
 
 test('OLL done, lower layers intact, across 300 random scrambles', () => {
   for (let seed = 0; seed < 300; seed++) {
-    const start = applyAll(solved(), scramble(mulberry32(seed)));
-    const s3 = solveSecondLayer(solveFirstLayer(solveCross(solveDaisy(start).state).state).state).state;
-    const { stage, state } = solveOll(s3);
-    expect(ollDone(state)).toBe(true);
-    expect(secondLayerDone(state) && firstLayerDone(state) && crossDone(state)).toBe(true);
-    expect(applyAll(s3, stage.moves)).toEqual(state);
+    try {
+      const start = applyAll(solved(), scramble(mulberry32(seed)));
+      const s3 = solveSecondLayer(solveFirstLayer(solveCross(solveDaisy(start).state).state).state).state;
+      const { stage, state } = solveOll(s3);
+      expect(ollDone(state)).toBe(true);
+      expect(secondLayerDone(state) && firstLayerDone(state) && crossDone(state)).toBe(true);
+      expect(applyAll(s3, stage.moves)).toEqual(state);
+    } catch (err) {
+      throw new Error(`seed=${seed}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+    }
   }
 });

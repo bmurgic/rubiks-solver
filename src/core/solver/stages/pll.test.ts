@@ -12,10 +12,14 @@ import { solvePll } from './pll';
 
 test('PLL fully solves the cube, across 300 random scrambles', () => {
   for (let seed = 0; seed < 300; seed++) {
-    const start = applyAll(solved(), scramble(mulberry32(seed)));
-    const s4 = solveOll(solveSecondLayer(solveFirstLayer(solveCross(solveDaisy(start).state).state).state).state).state;
-    const { stage, state } = solvePll(s4);
-    expect(isSolved(state)).toBe(true);
-    expect(applyAll(s4, stage.moves)).toEqual(state);
+    try {
+      const start = applyAll(solved(), scramble(mulberry32(seed)));
+      const s4 = solveOll(solveSecondLayer(solveFirstLayer(solveCross(solveDaisy(start).state).state).state).state).state;
+      const { stage, state } = solvePll(s4);
+      expect(isSolved(state)).toBe(true);
+      expect(applyAll(s4, stage.moves)).toEqual(state);
+    } catch (err) {
+      throw new Error(`seed=${seed}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+    }
   }
 });
