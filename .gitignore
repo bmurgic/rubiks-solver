@@ -32,3 +32,9 @@ coverage/
 # Playwright MCP artifacts and ad-hoc screenshots
 .playwright-mcp/
 /*.png
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
