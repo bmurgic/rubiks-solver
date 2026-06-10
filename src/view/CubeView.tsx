@@ -1,7 +1,7 @@
 import { Canvas, useFrame } from '@react-three/fiber';
-import { ContactShadows, OrbitControls } from '@react-three/drei';
+import { ContactShadows, OrbitControls, RoundedBox } from '@react-three/drei';
 import { memo, useMemo, useRef, type ReactNode } from 'react';
-import type { Group } from 'three';
+import { Quaternion, Shape, ShapeGeometry, Vector3, type Group } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import type { FaceName } from '../core/facelets/facelets';
 import type { Face, Move } from '../core/cube-model/moves';
@@ -26,6 +26,18 @@ const MAX_DISTANCE = 14;
 // Material sheen for the colored facelets — clean plastic, no metal.
 const FACELET_ROUGHNESS = 0.35;
 const FACELET_METALNESS = 0;
+
+// --- Friendly cube geometry (all easy-tune) ---------------------------------
+// Rounded black body + flat rounded-square stickers (one mesh per facelet).
+const BODY_CORNER_RADIUS = 0.09; // edge rounding of each cubelet body
+const BODY_SMOOTHNESS = 4; // RoundedBox curve segments
+const BODY_COLOR = PLASTIC; // black plastic body (#101010)
+const STICKER_FACE_RATIO = 0.82; // sticker size / face (medium black border)
+const STICKER_CORNER_RADIUS = 0.12; // rounded-square corner radius (world units)
+const STICKER_OFFSET = 0.005; // lift above body face — avoids z-fight
+// Coupling note: the flat face region is `halfSize - BODY_CORNER_RADIUS`.
+// Keep STICKER_SIZE/2 <= that or sticker edges overhang the rounded curve.
+// (radius 0.09 → flat half 0.41; sticker half 0.41 at ratio 0.82 → lands on the edge.)
 
 // Soft ground shadow placed just below the lowest cubelet layer.
 const SHADOW_Y = -1.7;
@@ -79,32 +91,80 @@ interface CubeletProps {
   facelets: FaceName[];
 }
 
+// Rounded-square outline for a sticker, centered at the origin in the XY plane.
+function roundedSquareShape(size: number, radius: number): Shape {
+  const half = size / 2;
+  const r = Math.min(radius, half);
+  const s = new Shape();
+  s.moveTo(-half + r, -half);
+  s.lineTo(half - r, -half);
+  s.quadraticCurveTo(half, -half, half, -half + r);
+  s.lineTo(half, half - r);
+  s.quadraticCurveTo(half, half, half - r, half);
+  s.lineTo(-half + r, half);
+  s.quadraticCurveTo(-half, half, -half, half - r);
+  s.lineTo(-half, -half + r);
+  s.quadraticCurveTo(-half, -half, -half + r, -half);
+  return s;
+}
+
+const STICKER_SIZE = CUBELET_SIZE * STICKER_FACE_RATIO;
+const STICKER_DISTANCE = CUBELET_SIZE / 2 + STICKER_OFFSET;
+// One shared flat geometry — reused by every sticker mesh (color varies per material).
+const STICKER_GEOMETRY = new ShapeGeometry(roundedSquareShape(STICKER_SIZE, STICKER_CORNER_RADIUS));
+
+// Per-face orientation: rotate the sticker plane (default normal +z) onto each box normal.
+const STICKER_PLANE_NORMAL = new Vector3(0, 0, 1);
+const STICKER_QUATERNIONS: readonly [number, number, number, number][] = BOX_NORMALS.map((n) => {
+  const q = new Quaternion().setFromUnitVectors(STICKER_PLANE_NORMAL, new Vector3(...n));
+  return [q.x, q.y, q.z, q.w];
+});
+
 // [frontend-patterns] memoized — skips cubelet re-renders when only `turn`/phase changes
 // and the cube state is unchanged. On those renders the parent's `useMemo`d facelets array
 // stays referentially stable, so all 26 instances bail out. (When a TURN_DONE commit
 // produces a new facelets array, every cubelet does re-render — that's intentional.)
 const Cubelet = memo(function Cubelet({ pos, facelets }: CubeletProps) {
-  const colors = useMemo(
+  // One sticker per visible facelet; interior faces (idx null) get none.
+  const stickers = useMemo(
     () =>
-      BOX_NORMALS.map((n) => {
+      BOX_NORMALS.flatMap((n, i) => {
         const idx = faceletIndexAt(pos, n);
-        return idx === null ? PLASTIC : FACE_COLORS[facelets[idx]];
+        if (idx === null) return [];
+        return [
+          {
+            key: i,
+            color: FACE_COLORS[facelets[idx]],
+            position: [n[0] * STICKER_DISTANCE, n[1] * STICKER_DISTANCE, n[2] * STICKER_DISTANCE] as Vec3,
+            quaternion: STICKER_QUATERNIONS[i],
+          },
+        ];
       }),
     [pos, facelets],
   );
   return (
-    <mesh position={[pos[0] * CUBELET_SPACING, pos[1] * CUBELET_SPACING, pos[2] * CUBELET_SPACING]}>
-      <boxGeometry args={[CUBELET_SIZE, CUBELET_SIZE, CUBELET_SIZE]} />
-      {colors.map((c, i) => (
+    <group position={[pos[0] * CUBELET_SPACING, pos[1] * CUBELET_SPACING, pos[2] * CUBELET_SPACING]}>
+      <RoundedBox
+        args={[CUBELET_SIZE, CUBELET_SIZE, CUBELET_SIZE]}
+        radius={BODY_CORNER_RADIUS}
+        smoothness={BODY_SMOOTHNESS}
+      >
         <meshStandardMaterial
-          key={i}
-          attach={`material-${i}`}
-          color={c}
+          color={BODY_COLOR}
           roughness={FACELET_ROUGHNESS}
           metalness={FACELET_METALNESS}
         />
+      </RoundedBox>
+      {stickers.map((s) => (
+        <mesh key={s.key} geometry={STICKER_GEOMETRY} position={s.position} quaternion={s.quaternion}>
+          <meshStandardMaterial
+            color={s.color}
+            roughness={FACELET_ROUGHNESS}
+            metalness={FACELET_METALNESS}
+          />
+        </mesh>
       ))}
-    </mesh>
+    </group>
   );
 });
 
