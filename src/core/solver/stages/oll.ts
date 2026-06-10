@@ -1,7 +1,6 @@
 import type { CubeState } from '../../cube-model/state';
 import { Corner, Edge } from '../../cube-model/state';
 import { Emitter, rotateUUntil } from '../emitter';
-import { cleanup } from '../cleanup';
 import { cornerSticker, edgeSticker } from '../recognition';
 import { StageCapError, type Stage } from '../types';
 
@@ -48,18 +47,30 @@ function orientEdges(e: Emitter): void {
     if (count === 0) {
       // Dot: any U setup works — F R U R' U' F' produces an L which the next
       // iteration will resolve.
-      e.do(F_SEXY_F);
+      e.action('No yellow edges are up yet — run the edge algorithm once to get an L shape.', () =>
+        e.do(F_SEXY_F),
+      );
       continue;
     }
     if (count === 2) {
       if (isOppositeEdgePair(e.state)) {
-        // Line: rotate until the line lies horizontal (UR + UL oriented).
-        rotateUUntil(e, (s) => edgeUp(s, Edge.UR) && edgeUp(s, Edge.UL));
-        e.do(F_SEXY_F);
+        e.action(
+          'Two yellow edges form a line — lay it flat, then run the edge algorithm to finish the yellow cross.',
+          () => {
+            // Line: rotate until the line lies horizontal (UR + UL oriented).
+            rotateUUntil(e, (s) => edgeUp(s, Edge.UR) && edgeUp(s, Edge.UL));
+            e.do(F_SEXY_F);
+          },
+        );
       } else {
-        // L shape: rotate until the L sits at UB + UL (back/left oriented).
-        rotateUUntil(e, (s) => edgeUp(s, Edge.UB) && edgeUp(s, Edge.UL));
-        e.do(F_SEXY_PRIME_F);
+        e.action(
+          'Two yellow edges form an L — point it to the back-left, then run the mirrored edge algorithm.',
+          () => {
+            // L shape: rotate until the L sits at UB + UL (back/left oriented).
+            rotateUUntil(e, (s) => edgeUp(s, Edge.UB) && edgeUp(s, Edge.UL));
+            e.do(F_SEXY_PRIME_F);
+          },
+        );
       }
       continue;
     }
@@ -78,15 +89,23 @@ function orientCorners(e: Emitter): void {
   for (let guard = 0; guard < OLL_CORNER_GUARD; guard++) {
     const count = orientedCornerCount(e.state);
     if (count === 4) return;
+    let why: string;
+    let pred: (s: CubeState) => boolean;
     if (count === 1) {
-      rotateUUntil(e, (s) => cornerUp(s, Corner.UFL));
+      why = 'One yellow corner is done — park it at the front-left, then run the Sune.';
+      pred = (s) => cornerUp(s, Corner.UFL);
     } else if (count === 0) {
-      rotateUUntil(e, (s) => cornerSticker(s, Corner.UFL, 'L') === 'U');
+      why = 'No yellow corners yet — set the anchor at the front-left, then run the Sune.';
+      pred = (s) => cornerSticker(s, Corner.UFL, 'L') === 'U';
     } else {
       // count === 2
-      rotateUUntil(e, (s) => cornerSticker(s, Corner.UFL, 'F') === 'U');
+      why = 'Two yellow corners are done — set the anchor at the front-left, then run the Sune.';
+      pred = (s) => cornerSticker(s, Corner.UFL, 'F') === 'U';
     }
-    e.do(SUNE);
+    e.action(why, () => {
+      rotateUUntil(e, pred);
+      e.do(SUNE);
+    });
   }
   throw new StageCapError('OLL', 'corner orientation did not converge');
 }
@@ -99,5 +118,5 @@ export function solveOll(state: CubeState): { stage: Stage; state: CubeState } {
     // Unreachable by construction: both look-helpers throw on non-convergence.
     throw new StageCapError('OLL', 'did not converge');
   }
-  return { stage: { name: 'OLL', moves: cleanup(e.moves) }, state: e.state };
+  return { stage: e.toStage(), state: e.state };
 }

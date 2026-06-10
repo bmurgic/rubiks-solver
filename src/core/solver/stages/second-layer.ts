@@ -2,7 +2,6 @@ import type { CubeState } from '../../cube-model/state';
 import { Edge } from '../../cube-model/state';
 import type { Face } from '../../cube-model/moves';
 import { Emitter, rotateUUntil } from '../emitter';
-import { cleanup } from '../cleanup';
 import { edgeHome, edgeSlot, edgeSticker } from '../recognition';
 import { StageCapError, type Stage } from '../types';
 import { U_SLOT_OF_FACE } from './daisy';
@@ -51,8 +50,10 @@ function ejectFromELayer(e: Emitter, slot: number): void {
   if (park === undefined) {
     throw new StageCapError('Second Layer', `no U slot for face ${c0.alignFace}`);
   }
-  rotateUUntil(e, (s) => !(MIDDLE_EDGES as readonly number[]).includes(s.ep[park]));
-  e.do(c0.alg);
+  e.action('This middle edge is in the wrong slot — run the insert to eject it up top.', () => {
+    rotateUUntil(e, (s) => !(MIDDLE_EDGES as readonly number[]).includes(s.ep[park]));
+    e.do(c0.alg);
+  });
 }
 
 function insertFromULayer(e: Emitter, cubie: number, slot: number): void {
@@ -61,12 +62,17 @@ function insertFromULayer(e: Emitter, cubie: number, slot: number): void {
   if (dest === undefined) {
     throw new StageCapError('Second Layer', `no U slot for face ${align}`);
   }
-  rotateUUntil(e, (s) => edgeSlot(s, cubie) === dest);
   const targetCase = CASES[cubie].find((c) => c.alignFace === align);
   if (!targetCase) {
     throw new StageCapError('Second Layer', `edge ${cubie} has no case for align face ${align}`);
   }
-  e.do(targetCase.alg);
+  e.action(
+    'Match the edge with its side center, then send it down into its slot with the insert trigger.',
+    () => {
+      rotateUUntil(e, (s) => edgeSlot(s, cubie) === dest);
+      e.do(targetCase.alg);
+    },
+  );
 }
 
 export function solveSecondLayer(state: CubeState): { stage: Stage; state: CubeState } {
@@ -84,5 +90,5 @@ export function solveSecondLayer(state: CubeState): { stage: Stage; state: CubeS
   if (!secondLayerDone(e.state)) {
     throw new StageCapError('Second Layer', 'did not converge');
   }
-  return { stage: { name: 'Second Layer', moves: cleanup(e.moves) }, state: e.state };
+  return { stage: e.toStage(), state: e.state };
 }

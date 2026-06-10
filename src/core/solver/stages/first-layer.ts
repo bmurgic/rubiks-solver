@@ -1,7 +1,6 @@
 import type { CubeState } from '../../cube-model/state';
 import { Corner } from '../../cube-model/state';
 import { Emitter, rotateUUntil } from '../emitter';
-import { cleanup } from '../cleanup';
 import { cornerSlot } from '../recognition';
 import { StageCapError, type Stage } from '../types';
 
@@ -31,18 +30,27 @@ function insertCorner(e: Emitter, cubie: number): void {
   // Eject if stuck in any D slot (wrong slot, or home slot but twisted).
   const slot = cornerSlot(e.state, cubie);
   if (slot >= D_LAYER_MIN_SLOT && !cornerSolved(e.state, cubie)) {
-    e.do(INSERT[slot].alg);
+    e.action('This white corner is stuck in the bottom — run the trigger to pop it out.', () =>
+      e.do(INSERT[slot].alg),
+    );
   }
   const { alg, above } = INSERT[cubie];
   for (let i = 0; i < INSERT_TRIAL_GUARD && !cornerSolved(e.state, cubie); i++) {
     const cur = cornerSlot(e.state, cubie);
     if (cur === cubie) {
       // Home slot but twisted: run the alg again to re-eject and reinsert.
-      e.do(alg);
+      e.action('The corner is in its slot but twisted — run the trigger again to re-seat it.', () =>
+        e.do(alg),
+      );
       continue;
     }
-    rotateUUntil(e, (s) => cornerSlot(s, cubie) === above);
-    e.do(alg);
+    e.action(
+      'Spin the top until the corner sits over its home slot, then run the righty trigger.',
+      () => {
+        rotateUUntil(e, (s) => cornerSlot(s, cubie) === above);
+        e.do(alg);
+      },
+    );
   }
   if (!cornerSolved(e.state, cubie)) {
     throw new StageCapError('First Layer', `corner ${cubie} did not insert`);
@@ -55,5 +63,5 @@ export function solveFirstLayer(state: CubeState): { stage: Stage; state: CubeSt
     if (cornerSolved(e.state, cubie)) continue;
     insertCorner(e, cubie);
   }
-  return { stage: { name: 'First Layer', moves: cleanup(e.moves) }, state: e.state };
+  return { stage: e.toStage(), state: e.state };
 }

@@ -14,6 +14,13 @@ test('10,000 random scrambles all solve to the solved state', () => {
       expect(stages.map((s) => s.name)).toEqual(STAGE_NAMES);
       const end = applyAll(start, stages.flatMap((s) => [...s.moves]));
       expect(isSolved(end)).toBe(true);
+      for (const stage of stages) {
+        for (const g of stage.groups) {
+          expect(g.why.trim().length).toBeGreaterThan(0);
+          expect(g.moves.length).toBeGreaterThan(0);
+        }
+        expect(stage.groups.flatMap((g) => [...g.moves])).toEqual([...stage.moves]);
+      }
     } catch (err) {
       throw new Error(`seed=${seed}: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
     }
