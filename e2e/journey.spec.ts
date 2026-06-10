@@ -80,3 +80,16 @@ test('teaching card is visible on mobile after a solve', async ({ page }) => {
   await page.getByTestId('solve').click();
   await expect(page.getByTestId('teaching-panel')).toBeVisible();
 });
+
+test('teaching panel narrates the current action after a solve', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('scramble').click();
+  await expect(page.getByTestId('app')).toHaveAttribute('data-phase', 'SCRAMBLED', { timeout: 30_000 });
+  await page.getByTestId('solve').click();
+
+  // Seek to the start: the first action's why is showing in the desktop rail.
+  await page.getByTestId('stage-seg-0').click();
+  const why = page.getByTestId('teaching-rail').getByTestId('action-why');
+  await expect(why).toBeVisible();
+  await expect(why).toHaveText(/.{20,}/); // real narration copy, not a placeholder glyph
+});
