@@ -23,6 +23,7 @@ test('scramble is always available and hard-resets mid-playback', async ({ page 
   await expect(page.getByTestId('app')).toHaveAttribute('data-phase', 'SCRAMBLED', { timeout: 30_000 });
   await page.getByTestId('solve').click();
   await page.getByTestId('play').click();
+  await expect(page.getByTestId('app')).toHaveAttribute('data-phase', 'PLAYING');
   await page.getByTestId('scramble').click(); // mid-playback reset
   await expect(page.getByTestId('app')).toHaveAttribute('data-phase', /SCRAMBLING|SCRAMBLED/, { timeout: 30_000 });
 });
