@@ -1,7 +1,7 @@
 import { Canvas, useFrame } from '@react-three/fiber';
 import { ContactShadows, OrbitControls, RoundedBox } from '@react-three/drei';
 import { memo, useMemo, useRef, type ReactNode } from 'react';
-import { Quaternion, Shape, ShapeGeometry, Vector3, type Group } from 'three';
+import { Quaternion, Shape, ShapeGeometry, Vector3, type Group, type MeshStandardMaterial } from 'three';
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib';
 import type { FaceName } from '../core/facelets/facelets';
 import type { Face, Move } from '../core/cube-model/moves';
@@ -41,6 +41,23 @@ const STICKER_OFFSET = 0.005; // lift above body face — avoids z-fight
 
 // Soft ground shadow placed just below the lowest cubelet layer.
 const SHADOW_Y = -1.7;
+
+// --- Teaching highlights ----------------------------------------------------
+// Glow shell: translucent rounded box slightly larger than the cubelet body.
+const HIGHLIGHT_COLOR = '#EA580C'; // solve accent orange
+const CUE_COLOR = '#4F46E5'; // primary indigo
+const SHELL_SCALE = 1.12;
+const SHELL_SIZE = CUBELET_SIZE * SHELL_SCALE;
+const SHELL_RADIUS = BODY_CORNER_RADIUS * SHELL_SCALE;
+const HIGHLIGHT_MIN_OPACITY = 0.18;
+const HIGHLIGHT_MAX_OPACITY = 0.45;
+const CUE_OPACITY = 0.12;
+const SHELL_EMISSIVE_INTENSITY = 0.7;
+const PULSE_HZ = 1; // one breathe per second
+
+const REDUCED_MOTION =
+  typeof window !== 'undefined' &&
+  window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const QUARTER_TURN_RAD = Math.PI / 2;
 const PRIME_TURNS = 3 as const;
@@ -86,9 +103,41 @@ export interface Turn {
   readonly onComplete: () => void;
 }
 
+interface GlowShellProps {
+  color: string;
+  minOpacity: number;
+  maxOpacity: number;
+  pulse: boolean;
+}
+
+/** Translucent glow box around a cubelet; opacity breathes when `pulse` is on. */
+function GlowShell({ color, minOpacity, maxOpacity, pulse }: GlowShellProps) {
+  const mat = useRef<MeshStandardMaterial>(null);
+  useFrame(({ clock }) => {
+    if (!pulse || !mat.current) return;
+    const t = (Math.sin(clock.elapsedTime * 2 * Math.PI * PULSE_HZ) + 1) / 2;
+    mat.current.opacity = minOpacity + t * (maxOpacity - minOpacity);
+  });
+  return (
+    <RoundedBox args={[SHELL_SIZE, SHELL_SIZE, SHELL_SIZE]} radius={SHELL_RADIUS} smoothness={BODY_SMOOTHNESS}>
+      <meshStandardMaterial
+        ref={mat}
+        color={color}
+        emissive={color}
+        emissiveIntensity={SHELL_EMISSIVE_INTENSITY}
+        transparent
+        opacity={(minOpacity + maxOpacity) / 2}
+        depthWrite={false}
+      />
+    </RoundedBox>
+  );
+}
+
 interface CubeletProps {
   pos: Vec3;
   facelets: FaceName[];
+  highlight: boolean;
+  tinted: boolean;
 }
 
 // Rounded-square outline for a sticker, centered at the origin in the XY plane.
@@ -124,7 +173,7 @@ const STICKER_QUATERNIONS: readonly [number, number, number, number][] = BOX_NOR
 // and the cube state is unchanged. On those renders the parent's `useMemo`d facelets array
 // stays referentially stable, so all 26 instances bail out. (When a TURN_DONE commit
 // produces a new facelets array, every cubelet does re-render — that's intentional.)
-const Cubelet = memo(function Cubelet({ pos, facelets }: CubeletProps) {
+const Cubelet = memo(function Cubelet({ pos, facelets, highlight, tinted }: CubeletProps) {
   // One sticker per visible facelet; interior faces (idx null) get none.
   const stickers = useMemo(
     () =>
@@ -164,6 +213,16 @@ const Cubelet = memo(function Cubelet({ pos, facelets }: CubeletProps) {
           />
         </mesh>
       ))}
+      {highlight ? (
+        <GlowShell
+          color={HIGHLIGHT_COLOR}
+          minOpacity={HIGHLIGHT_MIN_OPACITY}
+          maxOpacity={HIGHLIGHT_MAX_OPACITY}
+          pulse={!REDUCED_MOTION}
+        />
+      ) : tinted ? (
+        <GlowShell color={CUE_COLOR} minOpacity={CUE_OPACITY} maxOpacity={CUE_OPACITY} pulse={false} />
+      ) : null}
     </group>
   );
 });
@@ -215,9 +274,11 @@ function TurningGroup({ turn, children }: TurningGroupProps) {
 interface CubeViewProps {
   facelets: FaceName[];
   turn: Turn | null;
+  highlightKeys: ReadonlySet<string>; // 'x,y,z' grid keys of glowing cubelets
+  cueFace: Face | null; // layer about to rotate / rotating (null = no cue)
 }
 
-export function CubeView({ facelets, turn }: CubeViewProps) {
+export function CubeView({ facelets, turn, highlightKeys, cueFace }: CubeViewProps) {
   const turning = turn ? POSITIONS.filter(FACE_SELECTOR[turn.move.face]) : [];
   const still = turn ? POSITIONS.filter((p) => !FACE_SELECTOR[turn.move.face](p)) : POSITIONS;
   const controls = useRef<OrbitControlsImpl>(null);
@@ -230,7 +291,13 @@ export function CubeView({ facelets, turn }: CubeViewProps) {
         <directionalLight position={KEY_POSITION} intensity={KEY_INTENSITY} />
         <directionalLight position={FILL_POSITION} intensity={FILL_INTENSITY} />
         {still.map((p) => (
-          <Cubelet key={p.join(',')} pos={p} facelets={facelets} />
+          <Cubelet
+            key={p.join(',')}
+            pos={p}
+            facelets={facelets}
+            highlight={highlightKeys.has(p.join(','))}
+            tinted={cueFace !== null && FACE_SELECTOR[cueFace](p)}
+          />
         ))}
         {turn && (
           <TurningGroup
@@ -238,7 +305,13 @@ export function CubeView({ facelets, turn }: CubeViewProps) {
             turn={turn}
           >
             {turning.map((p) => (
-              <Cubelet key={p.join(',')} pos={p} facelets={facelets} />
+              <Cubelet
+                key={p.join(',')}
+                pos={p}
+                facelets={facelets}
+                highlight={highlightKeys.has(p.join(','))}
+                tinted={cueFace !== null && FACE_SELECTOR[cueFace](p)}
+              />
             ))}
           </TurningGroup>
         )}

@@ -6,7 +6,7 @@ import { toFacelets } from './core/facelets/facelets';
 import { mulberry32 } from './core/scramble/rng';
 import { scramble } from './core/scramble/scramble';
 import { solve } from './core/solver/solve';
-import type { Stage } from './core/solver/types';
+import type { PieceRef, Stage } from './core/solver/types';
 import { buildSnapshots } from './core/playback/snapshots';
 import { format } from './core/notation/notation';
 import { ErrorBoundary } from './view/ErrorBoundary';
@@ -14,6 +14,7 @@ import type { Turn } from './view/CubeView';
 import { ControlPanel } from './view/ControlPanel';
 import { TeachingPanel } from './view/TeachingPanel';
 import { stageIndexAt } from './view/stage-index';
+import { targetPositions } from './view/piece-positions';
 
 const CubeView = lazy(() => import('./view/CubeView').then((m) => ({ default: m.CubeView })));
 
@@ -30,6 +31,7 @@ interface Solution {
   readonly stageStart: readonly number[]; // first move index of each stage
   readonly groupStart: readonly number[]; // first move index of each action group
   readonly groupWhy: readonly string[]; // parallel to groupStart
+  readonly groupTargets: readonly (readonly PieceRef[])[]; // parallel to groupStart
   readonly snapshots: readonly CubeState[]; // length moves+1
 }
 
@@ -65,16 +67,26 @@ function buildSolution(cube: CubeState): Solution {
   const stageStart: number[] = [];
   const groupStart: number[] = [];
   const groupWhy: string[] = [];
+  const groupTargets: (readonly PieceRef[])[] = [];
   let acc = 0;
   for (const st of stages) {
     stageStart.push(acc);
     for (const g of st.groups) {
       groupStart.push(acc);
       groupWhy.push(g.why);
+      groupTargets.push(g.targets);
       acc += g.moves.length;
     }
   }
-  return { stages, moves, stageStart, groupStart, groupWhy, snapshots: buildSnapshots(cube, moves) };
+  return {
+    stages,
+    moves,
+    stageStart,
+    groupStart,
+    groupWhy,
+    groupTargets,
+    snapshots: buildSnapshots(cube, moves),
+  };
 }
 
 function getErrorMessage(err: unknown): string {
@@ -242,10 +254,20 @@ export default function App() {
 
   const hasSolution = s.solution !== null && s.solution.moves.length > 0;
   const currentStage = hasSolution ? stageIndexAt(s.solution!.stageStart, s.moveIndex) : -1;
-  const actionWhy =
+  const groupIndex =
     hasSolution && s.moveIndex < s.solution!.moves.length
-      ? s.solution!.groupWhy[stageIndexAt(s.solution!.groupStart, s.moveIndex)]
-      : null;
+      ? stageIndexAt(s.solution!.groupStart, s.moveIndex)
+      : -1;
+  const actionWhy = groupIndex >= 0 ? s.solution!.groupWhy[groupIndex] : null;
+  const highlightKeys = useMemo(
+    () =>
+      new Set(
+        groupIndex >= 0
+          ? targetPositions(s.cube, s.solution!.groupTargets[groupIndex]).map((p) => p.join(','))
+          : [],
+      ),
+    [s.cube, s.solution, groupIndex],
+  );
 
   return (
     <div
@@ -270,7 +292,7 @@ export default function App() {
             </div>
           }
         >
-          <CubeView facelets={facelets} turn={turn} />
+          <CubeView facelets={facelets} turn={turn} highlightKeys={highlightKeys} cueFace={null} />
         </Suspense>
       </ErrorBoundary>
       {s.solveError && (
