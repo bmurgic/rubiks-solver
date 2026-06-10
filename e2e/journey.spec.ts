@@ -27,3 +27,34 @@ test('scramble is always available and hard-resets mid-playback', async ({ page 
   await page.getByTestId('scramble').click(); // mid-playback reset
   await expect(page.getByTestId('app')).toHaveAttribute('data-phase', /SCRAMBLING|SCRAMBLED/, { timeout: 30_000 });
 });
+
+test('teaching rail highlights the stage being viewed and moves with seeking', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('scramble').click();
+  await expect(page.getByTestId('app')).toHaveAttribute('data-phase', 'SCRAMBLED', { timeout: 30_000 });
+  await page.getByTestId('solve').click();
+
+  // Default Playwright viewport (1280x720) is >= lg, so the desktop rail renders.
+  const firstRow = page.getByTestId('stage-roadmap-0');
+  const lastRow = page.getByTestId('stage-roadmap-5');
+  await expect(firstRow).toBeVisible();
+
+  // Seek to the first stage: its row is active (font-semibold), the last is not.
+  await page.getByTestId('stage-seg-0').click();
+  await expect(firstRow).toHaveClass(/font-semibold/);
+  await expect(lastRow).not.toHaveClass(/font-semibold/);
+
+  // Seek to the last stage: the highlight moves.
+  await page.getByTestId('stage-seg-5').click();
+  await expect(lastRow).toHaveClass(/font-semibold/);
+  await expect(firstRow).not.toHaveClass(/font-semibold/);
+});
+
+test('teaching card is visible on mobile after a solve', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); // < lg → mobile card, not the rail
+  await page.goto('/');
+  await page.getByTestId('scramble').click();
+  await expect(page.getByTestId('app')).toHaveAttribute('data-phase', 'SCRAMBLED', { timeout: 30_000 });
+  await page.getByTestId('solve').click();
+  await expect(page.getByTestId('teaching-panel')).toBeVisible();
+});
